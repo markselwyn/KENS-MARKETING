@@ -62,7 +62,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-white/20 p-2 rounded-lg text-yellow-300"><i class="fa-solid fa-chart-line"></i></div>
-                    <h3 class="font-medium text-blue-100 text-sm">DSS Weekend Forecast</h3>
+                    <h3 class="font-medium text-blue-100 text-sm"> Weekend Forecast</h3>
                 </div>
             </div>
             <h2 class="text-3xl font-bold tracking-tight mb-2">₱120K+</h2>

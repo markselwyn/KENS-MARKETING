@@ -41,12 +41,12 @@
                             <option value="this_week">This Week</option>
                             <option value="this_month" selected>This Month</option>
                             <option value="last_month">Last Month</option>
-                            <option value="q1">Quarter 1 (Jan - Mar)</option>
-                            <option value="year">Year to Date</option>
+                            <option value="q1">Quarter 1 (Jan - Apr)</option>
                             <option value="custom">Custom Date Range...</option>
                         </select>
                     </div>
                 </div>
+
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
@@ -75,7 +75,7 @@
         <div class="bg-gradient-to-br from-navy-900 to-navy-700 rounded-2xl p-6 shadow-sm border border-navy-700 text-white flex flex-col hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
             <div class="flex items-center gap-2 mb-4">
                 <i class="fa-solid fa-lightbulb text-yellow-400"></i>
-                <h2 class="text-lg font-semibold">DSS Macro Analysis</h2>
+                <h2 class="text-lg font-semibold"> Macro Analysis</h2>
             </div>
             <p class="text-xs text-blue-100 mb-6">System summary for the last 30 days.</p>
             

@@ -72,34 +72,38 @@
         <div class="bg-gradient-to-br from-navy-900 to-navy-700 rounded-2xl p-6 shadow-sm border border-navy-700 text-white lg:col-span-2 hover:shadow-lg transition-shadow duration-300">
             <div class="flex items-center gap-2 mb-6">
                 <i class="fa-solid fa-robot text-yellow-400"></i>
-                <h2 class="text-lg font-semibold">DSS Automated Procurement Engine</h2>
+                <h2 class="text-lg font-semibold">Sales Pattern & Action Center</h2>
             </div>
             
             <div class="space-y-4">
-                <div class="bg-white/10 rounded-xl p-4 border border-white/20 flex items-center justify-between">
+                <div class="bg-white/10 rounded-xl p-4 border border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex gap-4 items-center">
-                        <div class="w-10 h-10 rounded bg-red-400/20 text-red-400 flex items-center justify-center text-lg">
+                        <div class="w-10 h-10 rounded bg-red-400/20 text-red-400 flex items-center justify-center text-lg shrink-0">
                             <i class="fa-solid fa-couch"></i>
                         </div>
                         <div>
                             <h4 class="font-semibold text-sm">L-Shape Sofa Set (Beige)</h4>
-                            <p class="text-xs text-gray-300 mt-0.5">Only 1 left. Selling at 2.5 units/week. Stockout in 2 days.</p>
+                            <p class="text-xs text-gray-300 mt-0.5">High Velocity: Selling at 2.5 units/week. Stockout projected in 2 days.</p>
                         </div>
                     </div>
-                    <button class="text-xs bg-white text-navy-900 font-semibold px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors shadow-sm">Generate P.O.</button>
+                    <button onclick="openDssModal('restockModal')" class="text-xs bg-white text-navy-900 font-semibold px-4 py-2.5 rounded-lg hover:bg-gray-100 transition-colors shadow-sm whitespace-nowrap shrink-0">
+                        Calculate Restock Target
+                    </button>
                 </div>
 
-                <div class="bg-white/10 rounded-xl p-4 border border-white/20 flex items-center justify-between">
+                <div class="bg-white/10 rounded-xl p-4 border border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex gap-4 items-center">
-                        <div class="w-10 h-10 rounded bg-orange-400/20 text-orange-400 flex items-center justify-center text-lg">
-                            <i class="fa-solid fa-tv"></i>
+                        <div class="w-10 h-10 rounded bg-orange-400/20 text-orange-400 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-chair"></i>
                         </div>
                         <div>
-                            <h4 class="font-semibold text-sm">43" Smart LED TV</h4>
-                            <p class="text-xs text-gray-300 mt-0.5">3 left. Supplier lead time is 5 days. Reorder point triggered.</p>
+                            <h4 class="font-semibold text-sm">Premium Wooden Dining Set</h4>
+                            <p class="text-xs text-gray-300 mt-0.5">Stagnant Capital: 0 units sold in 45 days. ₱50,000 tied up in inventory.</p>
                         </div>
                     </div>
-                    <button class="text-xs bg-white text-navy-900 font-semibold px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors shadow-sm">Generate P.O.</button>
+                    <button onclick="openDssModal('promoModal')" class="text-xs bg-white text-navy-900 font-semibold px-4 py-2.5 rounded-lg hover:bg-gray-100 transition-colors shadow-sm whitespace-nowrap shrink-0">
+                        Suggest Markdown Promo
+                    </button>
                 </div>
             </div>
         </div>
@@ -327,6 +331,63 @@
     </div>
 </div>
 
+<div id="restockModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center transition-opacity opacity-0 no-print">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6 transform scale-95 transition-transform duration-300" id="restockModalContent">
+        <div class="flex items-center justify-between mb-4 border-b pb-3">
+            <h2 class="text-xl font-bold text-navy-900 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-green-600"></i> DSS Restock Recommendation
+            </h2>
+            <button onclick="closeDssModal('restockModal')" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <div class="mb-5 text-sm text-gray-700">
+            <p class="mb-2"><strong class="font-semibold w-32 inline-block">Item:</strong> L-Shape Sofa Set (Beige)</p>
+            <p class="mb-2"><strong class="font-semibold w-32 inline-block">Current Stock:</strong> <span class="text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded">1 unit</span></p>
+            <p><strong class="font-semibold w-32 inline-block">Supplier Lead Time:</strong> 5 days</p>
+        </div>
+        <div class="bg-green-50 border border-green-200 p-4 mb-6 rounded-lg">
+            <p class="text-green-800 font-bold text-sm mb-1 uppercase tracking-wider">DSS Output Target:</p>
+            <p class="text-green-900">Order <span class="font-bold text-lg bg-green-200 px-2 py-0.5 rounded ml-1">12 units</span> to maintain a safe 30-day stock buffer based on current sales velocity.</p>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button onclick="closeDssModal('restockModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none">Close</button>
+            <button onclick="closeDssModal('restockModal')" class="px-4 py-2 text-sm font-medium text-white bg-navy-900 rounded-lg hover:bg-navy-700 flex items-center gap-2 focus:outline-none">
+                <i class="fa-solid fa-print"></i> Print Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="promoModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center transition-opacity opacity-0 no-print">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6 transform scale-95 transition-transform duration-300" id="promoModalContent">
+        <div class="flex items-center justify-between mb-4 border-b pb-3">
+            <h2 class="text-xl font-bold text-navy-900 flex items-center gap-2">
+                <i class="fa-solid fa-tags text-orange-500"></i> DSS Capital Recovery Strategy
+            </h2>
+            <button onclick="closeDssModal('promoModal')" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <div class="mb-5 text-sm text-gray-700">
+            <p class="mb-2"><strong class="font-semibold w-36 inline-block">Item:</strong> Premium Wooden Dining Set</p>
+            <p class="mb-2"><strong class="font-semibold w-36 inline-block">Capital Tied Up:</strong> <span class="font-mono text-gray-900">₱50,000</span></p>
+            <p><strong class="font-semibold w-36 inline-block">Current Price:</strong> <span class="font-mono text-gray-900">₱18,500</span></p>
+        </div>
+        <div class="bg-orange-50 border border-orange-200 p-4 mb-6 rounded-lg">
+            <p class="text-orange-800 font-bold text-sm mb-1 uppercase tracking-wider">Action Suggested:</p>
+            <p class="text-orange-900 text-base mb-2">Apply a <strong>10% Markdown Promo</strong> (New Price: <span class="font-mono font-bold">₱16,650</span>).</p>
+            <p class="text-xs text-orange-700 italic border-t border-orange-200 pt-2 mt-2">Projection: This price reduction is mathematically projected to stimulate movement and recover stagnant capital within 14 days without dropping below your supplier cost.</p>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button onclick="closeDssModal('promoModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none">Close</button>
+            <button onclick="closeDssModal('promoModal')" class="px-4 py-2 text-sm font-medium text-white bg-navy-900 rounded-lg hover:bg-navy-700 flex items-center gap-2 focus:outline-none">
+                <i class="fa-solid fa-check"></i> Acknowledge Insight
+            </button>
+        </div>
+    </div>
+</div>
+
 <div class="hidden print:block text-black bg-white w-full">
     <div class="text-center border-b-2 border-black pb-6 mb-8">
         <h1 class="text-3xl font-bold uppercase tracking-wider text-black">Ken's Marketing</h1>
@@ -358,8 +419,8 @@
     </div>
 
     <div class="mb-8 print-break-inside-avoid">
-        <h3 class="text-lg font-bold border-b border-gray-400 mb-4 pb-1 uppercase text-black">2. DSS Automated Procurement Action Plan</h3>
-        <p class="text-sm text-gray-700 italic mb-3">The system has identified the following high-velocity items that require immediate purchase orders to prevent lost sales.</p>
+        <h3 class="text-lg font-bold border-b border-gray-400 mb-4 pb-1 uppercase text-black">2. DSS Restock Action Plan</h3>
+        <p class="text-sm text-gray-700 italic mb-3">The system has identified the following high-velocity items that require immediate restock targets to prevent lost sales.</p>
         <table class="w-full text-sm text-left border-collapse border border-gray-400">
             <thead>
                 <tr class="bg-gray-200">
@@ -367,7 +428,7 @@
                     <th class="border border-gray-400 px-3 py-2 font-bold text-black text-center whitespace-nowrap">Current Stock</th>
                     <th class="border border-gray-400 px-3 py-2 font-bold text-black text-center whitespace-nowrap">Reorder Point</th>
                     <th class="border border-gray-400 px-3 py-2 font-bold text-black text-center whitespace-nowrap">Lead Time</th>
-                    <th class="border border-gray-400 px-3 py-2 font-bold text-black text-center whitespace-nowrap">Suggested Order</th>
+                    <th class="border border-gray-400 px-3 py-2 font-bold text-black text-center whitespace-nowrap">Suggested Target</th>
                 </tr>
             </thead>
             <tbody>
@@ -452,6 +513,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // --- ADD PRODUCT MODAL ---
     const addModal = document.getElementById('addProductModal');
     const addModalContent = document.getElementById('modalContent');
     function openAddProductModal() {
@@ -463,6 +525,7 @@
         setTimeout(() => { addModal.classList.add('hidden'); }, 300);
     }
 
+    // --- EDIT PRODUCT MODAL ---
     const editModal = document.getElementById('editProductModal');
     const editModalContent = document.getElementById('editModalContent');
     function openEditProductModal(buttonElement) {
@@ -504,6 +567,30 @@
         }
     }
 
+    // --- DSS SYSTEM MODALS ---
+    function openDssModal(modalId) {
+        const modal = document.getElementById(modalId);
+        const content = document.getElementById(modalId + 'Content');
+        
+        modal.classList.remove('hidden');
+        setTimeout(() => { 
+            modal.classList.remove('opacity-0'); 
+            content.classList.remove('scale-95'); 
+        }, 10);
+    }
+
+    function closeDssModal(modalId) {
+        const modal = document.getElementById(modalId);
+        const content = document.getElementById(modalId + 'Content');
+        
+        modal.classList.add('opacity-0'); 
+        content.classList.add('scale-95');
+        setTimeout(() => { 
+            modal.classList.add('hidden'); 
+        }, 300);
+    }
+
+    // --- CHART.JS ---
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('stockHealthChart').getContext('2d');
         new Chart(ctx, {

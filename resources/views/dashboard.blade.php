@@ -99,7 +99,7 @@
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles text-yellow-400 print:text-black"></i>
-                    <h2 class="text-lg font-semibold">DSS Smart Insights</h2>
+                    <h2 class="text-lg font-semibold"> Smart Insights</h2>
                 </div>
                 <span class="bg-white/20 text-xs px-2 py-1 rounded-md font-medium print:bg-gray-200 print:text-black">Live</span>
             </div>
@@ -108,20 +108,28 @@
                 <div class="bg-white/10 rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-colors duration-200 cursor-pointer group print:bg-gray-50 print:border-gray-200">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5 text-red-400 group-hover:scale-110 transition-transform print:text-red-600"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                        <div>
-                            <h4 class="text-sm font-semibold text-white print:text-black">Stockout Predicted</h4>
-                            <p class="text-xs text-gray-300 mt-1 print:text-gray-600">Queen Size Uratex Foam is selling 40% faster this week. Projected to run out in 3 days.</p>
-                            <button onclick="window.location.href='/inventory'" class="mt-3 text-xs bg-white text-navy-900 font-semibold px-3 py-1.5 rounded hover:bg-gray-100 transition-colors shadow-sm no-print">Generate PO</button>
+                        <div class="w-full">
+                            <h4 class="text-sm font-semibold text-white print:text-black">Accelerated Depletion</h4>
+                            <p class="text-xs text-gray-300 mt-1 print:text-gray-600">Queen Size Uratex Foam is selling 40% faster this week. Projected to run out in 3 days due to demand surge.</p>
+                            <button onclick="window.location.href='/inventory'" class="mt-3 text-xs w-full bg-white text-navy-900 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors shadow-sm no-print">
+                                Review Restock Priority
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white/10 rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-colors duration-200 cursor-pointer group print:bg-gray-50 print:border-gray-200">
                     <div class="flex items-start gap-3">
-                        <div class="mt-0.5 text-green-400 group-hover:scale-110 transition-transform print:text-green-600"><i class="fa-solid fa-boxes-packing"></i></div>
-                        <div>
-                            <h4 class="text-sm font-semibold text-white print:text-black">Optimal Order Quantity</h4>
-                            <p class="text-xs text-gray-300 mt-1 print:text-gray-600">Supplier lead time for 43-inch Smart TVs is 5 days. Recommend ordering 15 units today.</p>
+                        <div class="mt-0.5 text-green-400 group-hover:scale-110 transition-transform print:text-green-600"><i class="fa-solid fa-lightbulb"></i></div>
+                        <div class="w-full">
+                            <h4 class="text-sm font-semibold text-white print:text-black flex items-center gap-2">
+                                Sales Pattern Detected
+                                <span class="bg-green-500 text-white text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">New</span>
+                            </h4>
+                            <p class="text-xs text-gray-300 mt-1 print:text-gray-600"><strong class="text-white print:text-black">68% correlation:</strong> Customers buying the 43" Smart TV frequently purchase the Wall Mount. Instruct staff to bundle.</p>
+                            <button class="mt-3 text-xs w-full bg-white text-navy-900 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors shadow-sm no-print flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-chart-pie"></i> View Sales Analytics
+                            </button>
                         </div>
                     </div>
                 </div>

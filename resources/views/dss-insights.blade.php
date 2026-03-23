@@ -21,48 +21,60 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
         
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 opacity-5 transform group-hover:scale-110 transition-transform duration-500">
-                <i class="fa-solid fa-cart-shopping text-8xl"></i>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800">Fast-Selling Product</h3>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">
+                    Data shows the <strong>L-Shape Sofa Set (Beige)</strong> is moving at a high velocity of 2.5 units/week. It is currently your top-performing item this month.
+                </p>
             </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="bg-purple-50 p-2 rounded-lg text-purple-600"><i class="fa-solid fa-link"></i></div>
-                <h3 class="font-bold text-gray-800 text-sm">Market Basket Analysis</h3>
+            <div class="bg-green-50 border-l-4 border-green-500 p-3 rounded-r text-xs">
+                <span class="font-bold text-green-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                <span class="text-green-700"> Increase minimum safety stock from 3 to 5 units to prevent lost sales.</span>
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed mb-4">Data shows <span class="font-bold text-gray-900">68%</span> of customers who buy a Smart TV also purchase a Karaoke Bluetooth Speaker within 30 days.</p>
-            <button class="text-xs bg-purple-50 text-purple-700 font-semibold px-3 py-1.5 rounded hover:bg-purple-100 transition-colors w-full text-left">
-                💡 Suggestion: Create a "Home Entertainment" Bundle Promo.
-            </button>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 opacity-5 transform group-hover:scale-110 transition-transform duration-500">
-                <i class="fa-solid fa-boxes-stacked text-8xl"></i>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800">Slow-Moving Product</h3>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">
+                    You have <strong>₱85,000</strong> tied up in Premium Wooden Dining Sets. 0 units have been sold in the last 45 days.
+                </p>
             </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="bg-orange-50 p-2 rounded-lg text-orange-600"><i class="fa-solid fa-money-bill-transfer"></i></div>
-                <h3 class="font-bold text-gray-800 text-sm">Capital Optimization</h3>
+            <div class="bg-orange-50 border-l-4 border-orange-500 p-3 rounded-r text-xs">
+                <span class="font-bold text-orange-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                <span class="text-orange-700"> Apply a 10% to 15% markdown promo to stimulate sales and recover capital.</span>
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed mb-4">You have <span class="font-bold text-gray-900">₱85,000</span> tied up in 'Wooden Dining Sets' which have a low velocity score of 0.2/week.</p>
-            <button class="text-xs bg-orange-50 text-orange-700 font-semibold px-3 py-1.5 rounded hover:bg-orange-100 transition-colors w-full text-left">
-                💡 Suggestion: Apply a 15% markdown to free up cash flow.
-            </button>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-            <div class="absolute -right-4 -top-4 opacity-5 transform group-hover:scale-110 transition-transform duration-500">
-                <i class="fa-solid fa-cloud-sun text-8xl"></i>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-cart-arrow-down"></i>
+                    </div>
+                    <h3 class="font-bold text-gray-800">Restock Action Required</h3>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">
+                    The <strong>43" Smart LED TV</strong> has reached its critical reorder point (3 units left). Supplier lead time is 5 days.
+                </p>
             </div>
-            <div class="flex items-center gap-3 mb-4">
-                <div class="bg-green-50 p-2 rounded-lg text-green-600"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                <h3 class="font-bold text-gray-800 text-sm">Seasonal Demand Forecast</h3>
+            <div class="bg-red-50 border-l-4 border-red-500 p-3 rounded-r text-xs">
+                <span class="font-bold text-red-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                <span class="text-red-700"> Generate a restock order for 15 units immediately to avoid a stockout.</span>
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed mb-4">Historical data indicates a <span class="font-bold text-gray-900">45% spike</span> in Air Conditioner & Inverter Ref sales approaching April (Summer).</p>
-            <button class="text-xs bg-green-50 text-green-700 font-semibold px-3 py-1.5 rounded hover:bg-green-100 transition-colors w-full text-left">
-                💡 Suggestion: Increase supplier PO volume by March 20th.
-            </button>
         </div>
 
     </div>
@@ -73,7 +85,7 @@
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                        <i class="fa-solid fa-chart-area text-navy-700"></i> AI Demand Forecast
+                        <i class="fa-solid fa-chart-line text-blue-500"></i> Velocity-Based Demand Forecast
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Projected revenue based on current velocity and historical patterns.</p>
                 </div>
