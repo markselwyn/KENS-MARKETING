@@ -23,6 +23,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-fade-in">
         
+        <!-- DYNAMIC FAST-SELLING PRODUCT CARD -->
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
                 <div class="flex items-center gap-3 mb-4">
@@ -32,15 +33,22 @@
                     <h3 class="font-bold text-gray-800">Fast-Selling Product</h3>
                 </div>
                 <p class="text-sm text-gray-600 mb-4">
-                    Data shows the <strong>L-Shape Sofa Set (Beige)</strong> is moving at a high velocity of 2.5 units/week. It is currently your top-performing item this month.
+                    @if($fastMover)
+                        Data shows the <strong>{{ $fastMover->product_name }}</strong> is moving at a high velocity ({{ $fastMover->total_sold }} units sold recently). It is currently your top-performing item.
+                    @else
+                        Insufficient sales data to calculate high-velocity items. Please record more transactions.
+                    @endif
                 </p>
             </div>
-            <div class="bg-green-50 border-l-4 border-green-500 p-3 rounded-r text-xs">
-                <span class="font-bold text-green-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
-                <span class="text-green-700"> Increase minimum safety stock from 3 to 5 units to prevent lost sales.</span>
-            </div>
+            @if($fastMover)
+                <div class="bg-green-50 border-l-4 border-green-500 p-3 rounded-r text-xs">
+                    <span class="font-bold text-green-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                    <span class="text-green-700"> Increase minimum safety stock to prevent lost sales. Current stock is {{ $fastMover->in_stock }} units.</span>
+                </div>
+            @endif
         </div>
 
+        <!-- DYNAMIC STAGNANT CAPITAL CARD -->
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
                 <div class="flex items-center gap-3 mb-4">
@@ -50,15 +58,22 @@
                     <h3 class="font-bold text-gray-800">Slow-Moving Product</h3>
                 </div>
                 <p class="text-sm text-gray-600 mb-4">
-                    You have <strong>₱85,000</strong> tied up in Premium Wooden Dining Sets. 0 units have been sold in the last 45 days.
+                    @if($stagnantProduct)
+                        You have <strong>₱{{ number_format($stagnantProduct->in_stock * $stagnantProduct->unit_price, 2) }}</strong> tied up in {{ $stagnantProduct->product_name }}. 0 units have been sold in the last 45 days.
+                    @else
+                        Capital allocation is healthy. No severely stagnant items detected in the last 45 days.
+                    @endif
                 </p>
             </div>
-            <div class="bg-orange-50 border-l-4 border-orange-500 p-3 rounded-r text-xs">
-                <span class="font-bold text-orange-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
-                <span class="text-orange-700"> Apply a 10% to 15% markdown promo to stimulate sales and recover capital.</span>
-            </div>
+            @if($stagnantProduct)
+                <div class="bg-orange-50 border-l-4 border-orange-500 p-3 rounded-r text-xs">
+                    <span class="font-bold text-orange-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                    <span class="text-orange-700"> Apply a markdown promo to stimulate sales and recover capital.</span>
+                </div>
+            @endif
         </div>
 
+        <!-- DYNAMIC RESTOCK ACTION CARD -->
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
                 <div class="flex items-center gap-3 mb-4">
@@ -68,17 +83,24 @@
                     <h3 class="font-bold text-gray-800">Restock Action Required</h3>
                 </div>
                 <p class="text-sm text-gray-600 mb-4">
-                    The <strong>43" Smart LED TV</strong> has reached its critical reorder point (3 units left). Supplier lead time is 5 days.
+                    @if($criticalRestock)
+                        The <strong>{{ $criticalRestock->product_name }}</strong> has reached a critical stock level ({{ $criticalRestock->in_stock }} units left). 
+                    @else
+                        All products are currently above their minimum reorder points. No urgent action required.
+                    @endif
                 </p>
             </div>
-            <div class="bg-red-50 border-l-4 border-red-500 p-3 rounded-r text-xs">
-                <span class="font-bold text-red-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
-                <span class="text-red-700"> Generate a restock order for 15 units immediately to avoid a stockout.</span>
-            </div>
+            @if($criticalRestock)
+                <div class="bg-red-50 border-l-4 border-red-500 p-3 rounded-r text-xs">
+                    <span class="font-bold text-red-800"><i class="fa-regular fa-lightbulb mr-1"></i> Recommendation:</span>
+                    <span class="text-red-700"> Generate a restock order for {{ $criticalRestock->reorder_point * 3 }} units immediately to avoid a stockout.</span>
+                </div>
+            @endif
         </div>
 
     </div>
 
+    <!-- The rest of your charts and simulators remain untouched below -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in delay-100">
         
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 lg:col-span-2 flex flex-col hover:shadow-md transition-shadow duration-300">
