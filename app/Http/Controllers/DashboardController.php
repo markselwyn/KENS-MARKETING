@@ -13,13 +13,23 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // 1. REVENUE MATH 
+        // ==========================================
+        // 1. REVENUE & PROFIT MATH 
+        // ==========================================
         $grossRevenue = Sale::sum('total_amount'); 
         $totalOrders = Sale::count();
         $avgOrderValue = $totalOrders > 0 ? ($grossRevenue / $totalOrders) : 0;
-        $netProfit = $grossRevenue * 0.30; 
+        
+        // Polished: Exact Net Profit Calculation
+        // Calculates profit by subtracting an estimated 70% supplier cost per item sold
+        $netProfit = DB::table('sales')
+            ->join('products', 'sales.product_id', '=', 'products.id')
+            ->select(DB::raw('SUM(sales.total_amount - (products.unit_price * 0.70 * sales.quantity_sold)) as exact_profit'))
+            ->value('exact_profit') ?: 0;
 
+        // ==========================================
         // 2. DSS INVENTORY LOGIC
+        // ==========================================
         $lowStockCount = Product::whereColumn('in_stock', '<=', 'reorder_point')->count(); 
         $priorityItem = Product::whereColumn('in_stock', '<=', 'reorder_point')
                                ->orderBy('in_stock', 'asc')
@@ -31,10 +41,14 @@ class DashboardController extends Controller
             $priorityRestock = "All stock levels optimal";
         }
 
-        // 3. RECENT TRANSACTIONS
+        // ==========================================
+        // 3. RECENT TRANSACTIONS (Eager Loading applied)
+        // ==========================================
         $recentTransactions = Sale::with('product')->latest()->take(3)->get();
 
+        // ==========================================
         // 4. CHART LOGIC: 3 Dynamic Timeframes
+        // ==========================================
         
         // --- A. Last 7 Days (Daily)
         $labels7 = []; $data7 = []; $total7 = 0;
@@ -67,7 +81,9 @@ class DashboardController extends Controller
             $totalYear += $sum;
         }
 
+        // ==========================================
         // 5. CATEGORY SALES VELOCITY
+        // ==========================================
         $categoryVelocity = DB::table('products')
             ->join('sales', 'products.id', '=', 'sales.product_id')
             ->select('products.category', DB::raw('SUM(sales.total_amount) as total_sales'))
@@ -82,24 +98,30 @@ class DashboardController extends Controller
         // 6. REAL DYNAMIC SMART INSIGHTS ENGINE (DSS)
         // ==========================================
         
-        // --- Insight 1: Inventory Risk Assessment
+        // --- Insight 1: Inventory Risk Assessment (UPDATED TERMINOLOGY)
         $criticalItem = Product::whereColumn('in_stock', '<=', 'reorder_point')
             ->orderBy('in_stock', 'asc')
             ->first();
 
         if ($criticalItem) {
-            $insight1Title = "Accelerated Depletion";
-            $insight1Text = "<strong>{$criticalItem->product_name}</strong> is at critical stock level ({$criticalItem->in_stock} remaining). Projected to stock out soon based on current reorder point ({$criticalItem->reorder_point}).";
+            $insight1Title = "Depletion Warning";
+            if ($criticalItem->in_stock == 0) {
+                $insight1Text = "<strong>{$criticalItem->product_name}</strong> is currently <strong>Out of Stock</strong>. Immediate replenishment required.";
+                $insight1Badge = "Out of Stock";
+                $insight1Color = "red";
+            } else {
+                $insight1Text = "<strong>{$criticalItem->product_name}</strong> has <strong>Limited Stock</strong> ({$criticalItem->in_stock} remaining). Projected to stock out soon based on reorder point ({$criticalItem->reorder_point}).";
+                $insight1Badge = "Limited Stock";
+                $insight1Color = "orange";
+            }
             $insight1Btn = "Review Restock Priority";
-            $insight1Link = url('/inventory');
-            $insight1Badge = "Critical";
-            $insight1Color = "red";
+            $insight1Link = url('/inventory?status=limited_stock');
         } else {
-            $insight1Title = "Inventory Levels Optimal";
-            $insight1Text = "All products are currently above their reorder points. No immediate depletion risks detected.";
+            $insight1Title = "Stock Levels Optimal";
+            $insight1Text = "All products are currently <strong>Available</strong> and above their reorder points. No immediate replenishment risks detected.";
             $insight1Btn = "View Inventory";
             $insight1Link = url('/inventory');
-            $insight1Badge = "Healthy";
+            $insight1Badge = "Available";
             $insight1Color = "green";
         }
 

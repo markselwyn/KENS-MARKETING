@@ -4,17 +4,26 @@
 @section('header_title', 'Report Center & Analytics')
 
 @section('content')
+
+<style>
+    /* Custom Scrollbar for the locked table */
+    .locked-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .locked-table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .locked-table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .locked-table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+</style>
+
 <div class="space-y-6">
 
     <!-- SUCCESS ALERT WITH "X" DISMISS BUTTON -->
     @if(session('success'))
-        <div id="top-success-alert" class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg shadow-sm animate-fade-in mb-4 flex justify-between items-center transition-all duration-300">
-            <div class="flex items-center">
-                <i class="fa-solid fa-circle-check text-green-500 mr-3 text-lg"></i>
-                <p class="text-green-800 font-medium text-sm">{{ session('success') }}</p>
+        <div id="toast-success" class="fixed top-24 right-6 z-50 flex items-center w-full max-w-sm p-4 bg-white border border-gray-100 rounded-2xl shadow-xl animate-fade-in" role="alert">
+            <div class="inline-flex items-center justify-center shrink-0 w-8 h-8 text-green-600 bg-green-50 rounded-lg">
+                <i class="fa-solid fa-check"></i>
             </div>
-            <button type="button" onclick="document.getElementById('top-success-alert').remove()" class="text-green-500 hover:text-green-700 hover:bg-green-100 p-1 rounded transition-colors focus:outline-none" title="Dismiss">
-                <i class="fa-solid fa-xmark text-lg px-1"></i>
+            <div class="ml-3 text-sm font-medium text-gray-700 pr-4">{{ session('success') }}</div>
+            <button type="button" onclick="closeToast('toast-success')" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg p-1.5 hover:bg-gray-50 inline-flex items-center justify-center h-8 w-8 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
     @endif
@@ -143,7 +152,7 @@
     </div>
 
     <!-- REPORT ARCHIVE SECTION -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
+    <div id="report-archive-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
         <div class="p-6 border-b border-gray-100 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-800">Report Archive</h2>
             <div class="relative">
@@ -152,9 +161,10 @@
             </div>
         </div>
         
-        <div class="overflow-x-auto max-h-[400px]">
-            <table class="w-full text-sm text-left text-gray-500">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 shadow-sm">
+        <!-- ULTIMATE CSS FIX: Exact locked height guarantees 0 layout shift. Inner scroll handles overflow -->
+        <div class="overflow-x-auto overflow-y-auto locked-table-scroll" style="height: 550px; overflow-anchor: none;">
+            <table class="w-full text-sm text-left text-gray-500 relative">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 shadow-sm z-10 border-b border-gray-200">
                     <tr>
                         <th scope="col" class="px-6 py-4 font-semibold">Report Name</th>
                         <th scope="col" class="px-6 py-4 font-semibold">Type</th>
@@ -218,11 +228,45 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination sits securely below the locked table block -->
+        <div class="border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            @if(method_exists($archives, 'links'))
+                <div class="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-sm text-gray-500 font-medium">
+                        Page <span class="text-navy-900 font-bold">{{ $archives->currentPage() }}</span> of <span class="text-navy-900 font-bold">{{ $archives->lastPage() }}</span>
+                    </div>
+                    <div class="w-full sm:w-auto overflow-x-auto">
+                        {{ $archives->links() }}
+                    </div>
+                </div>
+            @endif
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // --- TOAST NOTIFICATION LOGIC ---
+    function closeToast(id) {
+        const toast = document.getElementById(id);
+        if (toast) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            toast.style.transition = 'all 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300); 
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById('toast-success')) {
+            setTimeout(() => closeToast('toast-success'), 10000);
+        }
+        if (document.getElementById('toast-error')) {
+            setTimeout(() => closeToast('toast-error'), 10000);
+        }
+    });
+
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('macroAnalyticsChart').getContext('2d');
         
@@ -271,6 +315,73 @@
                 }
             }
         });
+    });
+
+    // --- BULLETPROOF AJAX PAGINATION (NO JUMPS) ---
+    
+    let currentFetchId = 0; 
+    let currentAbortController = null;
+
+    function performAjaxFetch(url) {
+        const tableContainer = document.getElementById('report-archive-container');
+        if(!tableContainer) return;
+        
+        const fetchId = ++currentFetchId;
+        
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        currentAbortController = new AbortController();
+        
+        // Disable pointer events to cleanly prevent race-condition double clicks
+        tableContainer.style.pointerEvents = 'none'; 
+        tableContainer.style.opacity = '0.5';
+        tableContainer.style.transition = 'opacity 0.2s ease-in-out';
+        
+        fetch(url, { signal: currentAbortController.signal })
+            .then(response => response.text())
+            .then(html => {
+                if (fetchId !== currentFetchId) return;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Swap purely the inner HTML
+                tableContainer.innerHTML = doc.getElementById('report-archive-container').innerHTML;
+                
+                // Re-enable clicks and restore opacity
+                tableContainer.style.pointerEvents = 'auto'; 
+                tableContainer.style.opacity = '1';
+                
+                window.history.pushState({}, '', url);
+            })
+            .catch(error => {
+                tableContainer.style.pointerEvents = 'auto'; 
+                if (error.name !== 'AbortError') {
+                    window.location.href = url; 
+                }
+            });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const tableContainer = document.getElementById('report-archive-container');
+
+        if (tableContainer) {
+            tableContainer.addEventListener('click', function(e) {
+                const link = e.target.closest('a');
+                
+                if (link && link.href && link.href.includes('page=')) {
+                    e.preventDefault(); 
+                    
+                    // ULTIMATE FIX: Blur the active button so the browser doesn't panic when it gets deleted!
+                    if (document.activeElement) {
+                        document.activeElement.blur();
+                    }
+
+                    performAjaxFetch(link.href);
+                }
+            });
+        }
     });
 </script>
 @endsection

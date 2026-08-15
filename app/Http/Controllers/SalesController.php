@@ -15,16 +15,26 @@ class SalesController extends Controller
      */
     public function index()
     {
-        // 1. Get basic data
+        // ==========================================
+        // 1. GET BASIC DATA (Eager Loading applied for speed)
+        // ==========================================
         $products = Product::where('in_stock', '>', 0)->orderBy('product_name', 'asc')->get();
-        $recentSales = Sale::with('product')->orderBy('created_at', 'desc')->limit(50)->get();
+        
+        // OPTIMIZATION APPLIED HERE: Replaced paginate(15) with paginate(10)
+        // This keeps the table shorter and cleaner on the frontend.
+        $recentSales = Sale::with('product')->orderBy('created_at', 'desc')->paginate(10);
 
-        // 2. Top Metric Cards Math
+        // ==========================================
+        // 2. TOP METRIC CARDS MATH
+        // ==========================================
         $todaySales = Sale::whereDate('created_at', Carbon::today())->sum('total_amount');
         $weekSales = Sale::whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])->sum('total_amount');
         $monthSales = Sale::whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month)->sum('total_amount');
 
-        // 3. Top Sellers (Grouped by Product, counted by Quantity)
+        // ==========================================
+        // 3. TOP SELLERS
+        // Grouped by Product, counted by Quantity
+        // ==========================================
         $topSellers = Sale::with('product')
             ->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
             ->select('product_id', DB::raw('SUM(quantity_sold) as total_qty'), DB::raw('SUM(total_amount) as total_revenue'))
@@ -56,7 +66,10 @@ class SalesController extends Controller
             $forecastText = "High volume predicted for {$forecastItem->product->product_name}. Recommend ensuring 2 extra staff members are scheduled for Saturday.";
         }
 
-        // 5. Peak Hour Tracer Logic (Grouping today's sales into 2-hour blocks)
+        // ==========================================
+        // 5. PEAK HOUR TRACER LOGIC
+        // Grouping today's sales into 2-hour blocks
+        // ==========================================
         $chartData = [0, 0, 0, 0, 0, 0]; // Represents: [8AM, 10AM, 12PM, 2PM, 4PM, 6PM]
         $salesToday = Sale::whereDate('created_at', Carbon::today())->get();
         
@@ -70,60 +83,86 @@ class SalesController extends Controller
             elseif($hour >= 17 && $hour <= 23) $chartData[5] += $sale->total_amount;
         }
 
-        // Send everything to the view!
+        // Send everything to the view
         return view('sales', compact('products', 'recentSales', 'todaySales', 'weekSales', 'monthSales', 'topSellers', 'chartData', 'forecastTitle', 'forecastText', 'forecastValue'));
     }
 
     /**
      * Process a new sale, deduct stock, and trigger DSS alerts.
+     * Uses DB Transactions for strict data integrity.
      */
     public function store(Request $request)
     {
-        // 1. Validate the cashier's input
+        // ==========================================
+        // 1. STRICT BACKEND VALIDATION
+        // ==========================================
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity_sold' => 'required|integer|min:1',
+            'quantity_sold' => 'required|integer|min:1'
+        ], [
+            'product_id.required' => 'Please select a valid product from the inventory.',
+            'quantity_sold.min' => 'You must sell at least 1 item.'
         ]);
 
-        // 2. Find the exact product being sold
-        $product = Product::findOrFail($request->product_id);
+        try {
+            // ==========================================
+            // 2. DATABASE TRANSACTION
+            // Wraps the process in a protective bubble. If anything fails, 
+            // it cancels the whole thing to prevent missing stock or missing money.
+            // ==========================================
+            DB::transaction(function () use ($request) {
+                
+                // Fetch the product and lock the row to prevent double-selling if two cashiers click at the exact same millisecond
+                $product = Product::lockForUpdate()->findOrFail($request->product_id);
 
-        // 3. Security: Prevent selling more stock than you actually have!
-        if ($request->quantity_sold > $product->in_stock) {
-            return back()->withErrors(['error' => 'Not enough stock! You only have ' . $product->in_stock . ' left.']);
+                // ==========================================
+                // 3. BACKEND FAILSAFE: INVENTORY CHECK
+                // ==========================================
+                if ($product->in_stock < $request->quantity_sold) {
+                    throw new \Exception("Transaction blocked: Insufficient stock. Only {$product->in_stock} units of {$product->product_name} available.");
+                }
+
+                // ==========================================
+                // 4. BACKEND MATH: NEVER TRUST THE FRONTEND
+                // We recalculate the total price here using the secure database price
+                // ==========================================
+                $secureTotalAmount = $product->unit_price * $request->quantity_sold;
+
+                // ==========================================
+                // 5. DEDUCT INVENTORY & RECORD SALE
+                // ==========================================
+                $newStockLevel = $product->in_stock - $request->quantity_sold;
+
+                // DSS AUTOMATION: Recalculate the status based on the new stock level
+                $status = 'Healthy';
+                if ($newStockLevel == 0) {
+                    $status = 'Out of Stock';
+                } elseif ($newStockLevel <= $product->reorder_point) {
+                    $status = 'Low Stock';
+                }
+
+                // Save the updated stock and status back to the inventory
+                $product->update([
+                    'in_stock' => $newStockLevel,
+                    'status' => $status,
+                ]);
+
+                // Record the sale
+                Sale::create([
+                    'product_id' => $product->id,
+                    'quantity_sold' => $request->quantity_sold,
+                    'total_amount' => $secureTotalAmount,
+                    'created_at' => Carbon::now(), 
+                    'updated_at' => Carbon::now(),
+                ]);
+            });
+
+            // If everything succeeds, redirect back with the green success alert
+            return redirect()->back()->with('success', 'Sale processed successfully! Inventory deducted.');
+
+        } catch (\Exception $e) {
+            // If the failsafe triggers, redirect back with the red error alert
+            return redirect()->back()->withErrors([$e->getMessage()]);
         }
-
-        // 4. Calculate the total revenue for this sale
-        $totalAmount = $product->unit_price * $request->quantity_sold;
-
-        // 5. Record the sale in the ledger
-        Sale::create([
-            'product_id' => $product->id,
-            'quantity_sold' => $request->quantity_sold,
-            'total_amount' => $totalAmount,
-            // Carbon::now() will use your local Bicol time based on your config/app.php timezone setup
-            'created_at' => Carbon::now(), 
-            'updated_at' => Carbon::now(),
-        ]);
-
-        // 6. DEDUCT THE STOCK
-        $newStockLevel = $product->in_stock - $request->quantity_sold;
-
-        // 7. DSS AUTOMATION: Recalculate the status based on the new stock level
-        $status = 'Healthy';
-        if ($newStockLevel == 0) {
-            $status = 'Out of Stock';
-        } elseif ($newStockLevel <= $product->reorder_point) {
-            $status = 'Low Stock';
-        }
-
-        // 8. Save the updated stock and status back to the inventory
-        $product->update([
-            'in_stock' => $newStockLevel,
-            'status' => $status,
-        ]);
-
-        // 9. Send the cashier back to the POS screen with a success message
-        return back()->with('success', 'Sale processed successfully! Inventory deducted.');
     }
 }

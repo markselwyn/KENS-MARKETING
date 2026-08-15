@@ -72,7 +72,9 @@ Route::middleware('auth')->group(function () {
     // ==========================================
     // Decision Support System (DSS) Insights Module
     // ==========================================
-    // NEW: Now routed through the Controller to process database algorithms!
     Route::get('/dss-insights', [DssInsightsController::class, 'index'])->name('dss-insights');
+    
+    // NEW: Apply Discount Route
+    Route::post('/dss-insights/apply-discount', [DssInsightsController::class, 'applyDiscount'])->name('dss.apply-discount');
     
 });

@@ -11,7 +11,7 @@ class Product extends Model
 {
     use HasFactory, LogsActivity;
 
-    // ADDED REORDER_POINT AND STATUS SO LARAVEL ALLOWS THEM TO UPDATE!
+    // ADDED REORDER_POINT, STATUS, AND PROMO_APPLIED_AT SO LARAVEL ALLOWS THEM TO UPDATE!
     protected $fillable = [
         'sku',
         'product_name',
@@ -19,7 +19,8 @@ class Product extends Model
         'unit_price',
         'in_stock',
         'reorder_point', 
-        'status'
+        'status',
+        'promo_applied_at' // <--- ADDED THIS LINE
     ];
 
     /**

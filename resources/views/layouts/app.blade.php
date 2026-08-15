@@ -304,5 +304,43 @@
             if(this.value.trim().length >= 2) resultsContainer.classList.remove('hidden');
         });
     </script>
+    
+    <!-- ========================================== -->
+    <!-- GLOBAL SPAM-CLICK FAILSAFE                 -->
+    <!-- Protects all forms from double-submissions -->
+    <!-- ========================================== -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Find every form on the website
+            const forms = document.querySelectorAll('form');
+            
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    // Find the submit button inside the form
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    
+                    if (submitBtn) {
+                        // If the button is already processing, block any extra clicks
+                        if (submitBtn.classList.contains('is-processing')) {
+                            e.preventDefault();
+                            return false;
+                        }
+                        
+                        // 1. Lock the button
+                        submitBtn.classList.add('is-processing');
+                        submitBtn.style.pointerEvents = 'none';
+                        submitBtn.style.opacity = '0.7';
+                        
+                        // 2. Change the button text to show a loading spinner
+                        // Note: Requires FontAwesome (which you already use for your icons)
+                        if (!submitBtn.dataset.originalText) {
+                            submitBtn.dataset.originalText = submitBtn.innerHTML;
+                        }
+                        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>

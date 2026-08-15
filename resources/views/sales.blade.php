@@ -5,42 +5,75 @@
 
 @section('content')
 
-<div class="space-y-6 print:hidden">
+<!-- ADD SELECT2 CSS FOR SEARCHABLE DROPDOWN -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    /* Custom styling to make Select2 match Tailwind's design */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        border-color: #e5e7eb !important;
+        border-radius: 0.5rem !important;
+        background-color: #f9fafb !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px !important;
+        color: #4b5563 !important;
+        font-size: 0.875rem !important;
+        padding-left: 12px !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+    }
+    .select2-dropdown {
+        border-color: #e5e7eb !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    }
+    .select2-search__field {
+        border-radius: 0.25rem !important;
+        outline: none !important;
+    }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #17507E !important; /* Navy 900 */
+    }
     
-    <div class="flex justify-between items-end animate-fade-in">
-        <div>
-            <p class="text-gray-500 text-sm">Manage and track your daily transactions.</p>
-        </div>
-        <div class="flex gap-3">
-            <button onclick="window.print()" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-700 hover:shadow-lg transition-all duration-200 flex items-center gap-2">
-                <i class="fa-solid fa-print"></i> Generate Formal Report
-            </button>
-        </div>
+    /* Custom Scrollbar for the locked table */
+    .locked-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .locked-table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .locked-table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .locked-table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+</style>
+
+<div class="space-y-6">
+    
+    <div class="animate-fade-in mb-6">
+        <p class="text-gray-500 text-sm">Manage and track your daily transactions.</p>
     </div>
 
     <!-- ========================================== -->
-    <!-- SYSTEM ALERTS (SUCCESS & ERROR)            -->
+    <!-- MINIMALIST TOAST NOTIFICATIONS             -->
     <!-- ========================================== -->
     @if(session('success'))
-        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg shadow-sm animate-fade-in my-4">
-            <div class="flex items-center">
-                <i class="fa-solid fa-circle-check text-green-500 mr-3 text-lg"></i>
-                <p class="text-green-800 font-medium text-sm">{{ session('success') }}</p>
+        <div id="toast-success" class="fixed top-16 right-6 z-50 flex items-center w-full max-w-sm p-4 bg-white border border-gray-100 rounded-2xl shadow-xl animate-fade-in" role="alert">
+            <div class="inline-flex items-center justify-center shrink-0 w-8 h-8 text-green-600 bg-green-50 rounded-lg">
+                <i class="fa-solid fa-check"></i>
             </div>
+            <div class="ml-3 text-sm font-medium text-gray-700 pr-4">{{ session('success') }}</div>
+            <button type="button" onclick="closeToast('toast-success')" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg p-1.5 hover:bg-gray-50 inline-flex items-center justify-center h-8 w-8 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
     @endif
 
     @if($errors->any())
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm animate-fade-in my-4">
-            <div class="flex items-center mb-2">
-                <i class="fa-solid fa-triangle-exclamation text-red-500 mr-3 text-lg"></i>
-                <p class="text-red-800 font-bold text-sm">Transaction Failed!</p>
+        <div id="toast-error" class="fixed top-24 right-6 z-50 flex items-center w-full max-w-sm p-4 bg-white border border-gray-100 rounded-2xl shadow-xl animate-fade-in" role="alert">
+            <div class="inline-flex items-center justify-center shrink-0 w-8 h-8 text-red-600 bg-red-50 rounded-lg">
+                <i class="fa-solid fa-triangle-exclamation"></i>
             </div>
-            <ul class="list-disc list-inside text-xs text-red-700 ml-7 font-medium">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
+            <div class="ml-3 text-sm font-medium text-gray-700 pr-4">{{ $errors->first() }}</div>
+            <button type="button" onclick="closeToast('toast-error')" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg p-1.5 hover:bg-gray-50 inline-flex items-center justify-center h-8 w-8 transition-colors">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
     @endif
     <!-- ========================================== -->
@@ -119,10 +152,11 @@
                     
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Select Item from Inventory</label>
-                        <select id="productSelect" name="product_id" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white cursor-pointer transition-colors" required onchange="calculateTotal()">
+                        <!-- ADDED 'searchable-select' CLASS FOR JAVASCRIPT TARGETING -->
+                        <select id="productSelect" name="product_id" class="searchable-select w-full" required onchange="updateMaxQuantity(); calculateTotal();">
                             <option value="" disabled selected>Choose item...</option>
                             @foreach($products as $product)
-                                <option value="{{ $product->id }}" data-price="{{ $product->unit_price }}">
+                                <option value="{{ $product->id }}" data-price="{{ $product->unit_price }}" data-stock="{{ $product->in_stock }}">
                                     {{ $product->product_name }} (Stock: {{ $product->in_stock }})
                                 </option>
                             @endforeach
@@ -135,7 +169,6 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-700 mb-1">Total (₱)</label>
-                            <!-- This is readonly because JS calculates it automatically -->
                             <input type="text" id="totalDueDisplay" placeholder="0.00" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100 text-green-700 font-bold" readonly>
                         </div>
                     </div>
@@ -192,14 +225,16 @@
     <!-- ========================================== -->
     <!-- LIVE SALES LEDGER TABLE                    -->
     <!-- ========================================== -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
-        <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+    <div id="recent-sales-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
             <h2 class="text-lg font-semibold text-gray-800">Recent Sales Ledger</h2>
             <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">Live Updates</span>
         </div>
-        <div class="overflow-x-auto max-h-[400px]">
-            <table class="w-full text-sm text-left text-gray-500">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 shadow-sm">
+        
+        <!-- ULTIMATE CSS FIX: Exact locked height guarantees 0 layout shift. Inner scroll handles overflow -->
+        <div class="overflow-x-auto overflow-y-auto locked-table-scroll" style="height: 700px;">
+            <table class="w-full text-sm text-left text-gray-500 relative">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                     <tr>
                         <th scope="col" class="px-6 py-4 font-semibold">Receipt No.</th>
                         <th scope="col" class="px-6 py-4 font-semibold">Date & Time</th>
@@ -225,61 +260,107 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination sits securely below the locked table block -->
+        <div class="border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            @if(method_exists($recentSales, 'links'))
+                <div class="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-sm text-gray-500 font-medium">
+                        Page <span class="text-navy-900 font-bold">{{ $recentSales->currentPage() }}</span> of <span class="text-navy-900 font-bold">{{ $recentSales->lastPage() }}</span>
+                    </div>
+                    <div class="w-full sm:w-auto overflow-x-auto">
+                        {{ $recentSales->links() }}
+                    </div>
+                </div>
+            @endif
+        </div>
     </div>
 </div>
-
-<!-- ========================================== -->
-<!-- YOUR EXISTING PRINT SECTION REMAINS INTACT -->
-<!-- ========================================== -->
-<div class="hidden print:block text-black bg-white w-full">
-    <div class="text-center border-b-2 border-black pb-6 mb-8">
-        <h1 class="text-3xl font-bold uppercase tracking-wider text-black">Ken's Marketing</h1>
-        <p class="text-sm mt-1">Ligao City, Bicol, Philippines</p>
-        <h2 class="text-xl font-semibold mt-4">DSS Official Sales & Performance Report</h2>
-        <p class="text-sm mt-1">Report Generated: {{ date('F j, Y, g:i a') }}</p>
-    </div>
-
-    <!-- ... rest of your print HTML ... -->
-    <!-- (I left this untouched so your print layout doesn't break!) -->
-</div>
-
-<style>
-    @media print {
-        @page { margin: 1.5cm; }
-        body * { visibility: hidden; }
-        .print\:block, .print\:block * { visibility: visible; }
-        .print\:block {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-        }
-        #sidebar, header { display: none !important; }
-    }
-</style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ADD SELECT2 JS SCRIPT -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
+    // --- INITIALIZE SEARCHABLE DROPDOWN ---
+    $(document).ready(function() {
+        $('.searchable-select').select2({
+            placeholder: "Search or select an item...",
+            allowClear: true,
+            width: '100%' 
+        });
+        
+        $('.searchable-select').on('change', function() {
+            updateMaxQuantity();
+            calculateTotal();
+        });
+    });
+
+    // --- TOAST NOTIFICATION LOGIC ---
+    function closeToast(id) {
+        const toast = document.getElementById(id);
+        if (toast) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            toast.style.transition = 'all 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300); 
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById('toast-success')) {
+            setTimeout(() => closeToast('toast-success'), 10000);
+        }
+        
+        if (document.getElementById('toast-error')) {
+            setTimeout(() => closeToast('toast-error'), 10000);
+        }
+    });
+
     // --- LIVE MATH CALCULATION FOR POS FORM ---
     function calculateTotal() {
         const select = document.getElementById('productSelect');
-        const qty = document.getElementById('qtyInput').value;
+        const qtyInput = document.getElementById('qtyInput');
         const totalDueDisplay = document.getElementById('totalDueDisplay');
 
-        if (select.selectedIndex > 0 && qty > 0) {
+        if (qtyInput.value !== "" && qtyInput.value < 1) {
+            qtyInput.value = 1;
+        }
+
+        if (select.selectedIndex > 0 && qtyInput.value > 0) {
             const price = parseFloat(select.options[select.selectedIndex].getAttribute('data-price'));
-            const formattedTotal = (price * qty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const stock = parseInt(select.options[select.selectedIndex].getAttribute('data-stock'));
+            let currentQty = parseInt(qtyInput.value);
+
+            if (currentQty > stock) {
+                alert("Warning: You cannot sell more than the current available stock (" + stock + " units).");
+                qtyInput.value = stock;
+                currentQty = stock; 
+            }
+
+            const formattedTotal = (price * currentQty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             totalDueDisplay.value = formattedTotal;
         } else {
             totalDueDisplay.value = '0.00';
         }
     }
 
+    function updateMaxQuantity() {
+        const select = document.getElementById('productSelect');
+        const qtyInput = document.getElementById('qtyInput');
+        
+        if (select.selectedIndex > 0) {
+            const stock = select.options[select.selectedIndex].getAttribute('data-stock');
+            qtyInput.max = stock; 
+            qtyInput.value = 1; 
+        }
+    }
+
     // --- LIVE CHART LOGIC ---
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('salesVelocityChart').getContext('2d');
-        
-        // Securely load the PHP array into JS
         const liveChartData = @json($chartData);
 
         new Chart(ctx, {
@@ -288,7 +369,7 @@
                 labels: ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM'],
                 datasets: [{
                     label: 'Sales Vol (₱)',
-                    data: liveChartData, // Live data from the database!
+                    data: liveChartData, 
                     borderColor: '#17507E',
                     backgroundColor: 'rgba(23, 80, 126, 0.1)',
                     borderWidth: 3,
@@ -312,6 +393,67 @@
                 }
             }
         });
+    });
+
+    // --- BULLETPROOF AJAX PAGINATION (NO JUMPS) ---
+    
+    let currentFetchId = 0; 
+    let currentAbortController = null;
+
+    function performAjaxFetch(url) {
+        const tableContainer = document.getElementById('recent-sales-container');
+        if(!tableContainer) return;
+        
+        const fetchId = ++currentFetchId;
+        
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        currentAbortController = new AbortController();
+        
+        // Disable pointer events to cleanly prevent race-condition double clicks
+        tableContainer.style.pointerEvents = 'none'; 
+        tableContainer.style.opacity = '0.5';
+        tableContainer.style.transition = 'opacity 0.2s ease-in-out';
+        
+        fetch(url, { signal: currentAbortController.signal })
+            .then(response => response.text())
+            .then(html => {
+                if (fetchId !== currentFetchId) return;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Swap purely the inner HTML
+                tableContainer.innerHTML = doc.getElementById('recent-sales-container').innerHTML;
+                
+                // Re-enable clicks and restore opacity
+                tableContainer.style.pointerEvents = 'auto'; 
+                tableContainer.style.opacity = '1';
+                
+                window.history.pushState({}, '', url);
+            })
+            .catch(error => {
+                tableContainer.style.pointerEvents = 'auto'; 
+                if (error.name !== 'AbortError') {
+                    window.location.href = url; 
+                }
+            });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const tableContainer = document.getElementById('recent-sales-container');
+
+        if (tableContainer) {
+            tableContainer.addEventListener('click', function(e) {
+                const link = e.target.closest('a');
+                
+                if (link && link.href && link.href.includes('page=')) {
+                    e.preventDefault(); 
+                    performAjaxFetch(link.href);
+                }
+            });
+        }
     });
 </script>
 @endsection

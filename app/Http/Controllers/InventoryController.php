@@ -5,45 +5,79 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Restock; 
-use App\Models\Sale; // NEW: Needed to check sales history for stagnant items
+use App\Models\Sale; 
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\ProductsImport;
-use Illuminate\Support\Facades\DB; // NEW: Needed for raw SQL queries
+use Illuminate\Support\Facades\DB; 
 
 class InventoryController extends Controller
 {
     /**
      * This loads your inventory.blade.php page 
-     * and sends all the database products to your HTML table.
+     * and handles global server-side searching/filtering.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // 1. Get all products for the main table
-        $products = Product::orderBy('updated_at', 'desc')->get(); 
+        // 1. Start a database query instead of loading all at once
+        $query = Product::query();
+
+        // 2. SERVER-SIDE SEARCH: Filter by Search Term globally
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('sku', 'like', "%{$search}%")
+                  ->orWhere('product_name', 'like', "%{$search}%");
+            });
+        }
+
+        // 3. SERVER-SIDE FILTER: Filter by Category globally
+        if ($request->filled('category') && $request->category !== 'all') {
+            $query->where('category', $request->category);
+        }
+
+        // 4. NEW STATUS FILTER (Available, Limited Stock, Out of Stock)
+        if ($request->filled('status') && $request->status !== 'all') {
+            if ($request->status === 'available') {
+                $query->whereColumn('in_stock', '>', 'reorder_point');
+            } elseif ($request->status === 'limited_stock') {
+                $query->where('in_stock', '>', 0)->whereColumn('in_stock', '<=', 'reorder_point');
+            } elseif ($request->status === 'out_of_stock') {
+                $query->where('in_stock', '<=', 0);
+            }
+        }
+
+        // OPTIMIZATION: Paginate the filtered results & append URL parameters so "Next" remembers the search
+        $products = $query->orderBy('updated_at', 'desc')->paginate(15)->appends($request->all()); 
+        
+        // Fetch all unique categories from the database for the dynamic dropdown
+        $categories = Product::pluck('category')->unique()->filter()->sort();
         
         // ==========================================
-        // 2. DSS LOGIC: Find Stagnant Capital
-        // Find items with high stock but low/no sales in the last 45 days
+        // 5. DSS LOGIC: Find Stagnant Capital (UPGRADED TO ELOQUENT)
         // ==========================================
         
-        // Let's find the product with the most stock that hasn't sold recently
-        $stagnantProduct = DB::table('products')
-            ->leftJoin('sales', function($join) {
-                $join->on('products.id', '=', 'sales.product_id')
-                     ->where('sales.created_at', '>=', now()->subDays(45));
+        // Step A: Get IDs of products that HAVE sold in the last 45 days
+        $recentlySoldProductIds = DB::table('sales')
+            ->where('created_at', '>=', now()->subDays(45))
+            ->pluck('product_id');
+
+        // Step B: Find stagnant products (Not in the sold list, > 0 stock, and grace period passed)
+        // Using Eloquent (Product::where) instead of DB::table ensures we get the true Model with the ID
+        $stagnantProduct = Product::where('in_stock', '>', 0)
+            ->whereNotIn('id', $recentlySoldProductIds)
+            ->where(function ($query) {
+                // Ignore products that just had a promo applied in the last 14 days
+                $query->whereNull('promo_applied_at')
+                      ->orWhere('promo_applied_at', '<', now()->subDays(14));
             })
-            ->select('products.id', 'products.product_name', 'products.in_stock', 'products.unit_price', 
-                     DB::raw('COALESCE(SUM(sales.quantity_sold), 0) as recent_sales'))
-            ->groupBy('products.id', 'products.product_name', 'products.in_stock', 'products.unit_price')
-            ->havingRaw('recent_sales = 0') // Hasn't sold
-            ->where('products.in_stock', '>', 5) // Has significant stock
-            ->orderBy('products.in_stock', 'desc') // Get the one with the most stock
+            ->orderByRaw('(in_stock * unit_price) DESC') // Prioritize highest capital tied up
             ->first();
 
         // Prepare variables for the view
         $stagnantTitle = "Inventory Optimal";
         $stagnantMessage = "Capital allocation is healthy. No severely stagnant items detected.";
         $stagnantValue = 0;
+        $stagnantId = null; // Track exact ID to prevent duplicate conflicts
         
         if ($stagnantProduct) {
             $tiedUpMoney = $stagnantProduct->in_stock * $stagnantProduct->unit_price;
@@ -52,10 +86,11 @@ class InventoryController extends Controller
             $stagnantTitle = $stagnantProduct->product_name;
             $stagnantMessage = "Stagnant Capital: 0 units sold in 45 days. ₱{$formattedMoney} tied up in inventory.";
             $stagnantValue = $tiedUpMoney;
+            $stagnantId = $stagnantProduct->id; // Pass exact ID
         }
 
         // Send everything to the view
-        return view('inventory', compact('products', 'stagnantTitle', 'stagnantMessage', 'stagnantValue'));
+        return view('inventory', compact('products', 'categories', 'stagnantTitle', 'stagnantMessage', 'stagnantValue', 'stagnantId'));
     }
 
     /**
@@ -74,11 +109,11 @@ class InventoryController extends Controller
         ]);
 
         // 2. DSS Logic: Automatically determine the stock status
-        $status = 'Healthy';
-        if ($request->in_stock == 0) {
+        $status = 'Available';
+        if ($request->in_stock <= 0) {
             $status = 'Out of Stock';
         } elseif ($request->in_stock <= $request->reorder_point) {
-            $status = 'Low Stock';
+            $status = 'Limited Stock';
         }
 
         // 3. Save the new product to the database
@@ -116,11 +151,11 @@ class InventoryController extends Controller
         $product = Product::findOrFail($request->id);
 
         // 3. DSS Logic: Recalculate status in case they changed the stock level
-        $status = 'Healthy';
-        if ($request->in_stock == 0) {
+        $status = 'Available';
+        if ($request->in_stock <= 0) {
             $status = 'Out of Stock';
         } elseif ($request->in_stock <= $request->reorder_point) {
-            $status = 'Low Stock';
+            $status = 'Limited Stock';
         }
 
         // 4. Update the database record
@@ -207,12 +242,12 @@ class InventoryController extends Controller
         // 2. INCREASE THE STOCK
         $newStockLevel = $product->in_stock + $request->quantity_added;
 
-        // 3. DSS AUTOMATION: Recalculate status (bringing items back to normal!)
-        $status = 'Healthy';
-        if ($newStockLevel == 0) {
+        // 3. DSS AUTOMATION: Recalculate status
+        $status = 'Available';
+        if ($newStockLevel <= 0) {
             $status = 'Out of Stock';
         } elseif ($newStockLevel <= $product->reorder_point) {
-            $status = 'Low Stock';
+            $status = 'Limited Stock';
         }
 
         // 4. Update the physical inventory

@@ -17,21 +17,34 @@ class ReportsController extends Controller
         $revenueData = [];
         $profitData = [];
 
-        // 1. 6-MONTH CHART DATA
+        // ==========================================
+        // 1. 6-MONTH CHART DATA (Updated to calculate exact profit)
+        // ==========================================
         for ($i = 5; $i >= 0; $i--) {
             $month = Carbon::today()->startOfMonth()->subMonths($i);
             $label = $month->format('F');
             if ($i == 0) $label .= ' (Current)';
             $labels[] = $label;
 
-            $monthlyRevenue = Sale::whereYear('created_at', $month->year)->whereMonth('created_at', $month->month)->sum('total_amount');
+            // Get exact revenue for the month
+            $monthlyRevenue = Sale::whereYear('created_at', $month->year)
+                                  ->whereMonth('created_at', $month->month)
+                                  ->sum('total_amount');
+            
+            // Get exact profit for the month by subtracting the 70% baseline supplier cost
+            $monthlyProfit = DB::table('sales')
+                ->join('products', 'sales.product_id', '=', 'products.id')
+                ->whereYear('sales.created_at', $month->year)
+                ->whereMonth('sales.created_at', $month->month)
+                ->select(DB::raw('SUM(sales.total_amount - (products.unit_price * 0.70 * sales.quantity_sold)) as exact_profit'))
+                ->value('exact_profit') ?: 0;
+
             $revenueData[] = $monthlyRevenue;
-            $profitData[] = $monthlyRevenue * 0.30; 
+            $profitData[] = $monthlyProfit; 
         }
 
         // ==========================================
         // 2. DSS MACRO ANALYSIS: STAGNANT CAPITAL
-        // Exactly matches the algorithm from Inventory and Insights modules
         // ==========================================
         $stagnantProduct = DB::table('products')
             ->leftJoin('sales', function($join) {
@@ -47,7 +60,6 @@ class ReportsController extends Controller
 
         // ==========================================
         // 3. DSS MACRO ANALYSIS: REVENUE TARGET MET
-        // Compares this month's sales to last month's sales
         // ==========================================
         $thisMonthSales = Sale::whereYear('created_at', now()->year)->whereMonth('created_at', now()->month)->sum('total_amount');
         $lastMonthSales = Sale::whereYear('created_at', now()->subMonth()->year)->whereMonth('created_at', now()->subMonth()->month)->sum('total_amount');
@@ -57,7 +69,8 @@ class ReportsController extends Controller
             $revenueGrowth = (($thisMonthSales - $lastMonthSales) / $lastMonthSales) * 100;
         }
 
-        $archives = Report::orderBy('created_at', 'desc')->get();
+        // OPTIMIZATION APPLIED HERE: Paginate the report archive to show 10 per page
+        $archives = Report::orderBy('created_at', 'desc')->paginate(10);
         
         return view('reports', compact('labels', 'revenueData', 'profitData', 'archives', 'stagnantProduct', 'thisMonthSales', 'revenueGrowth'));
     }
@@ -212,6 +225,8 @@ class ReportsController extends Controller
                 fputcsv($file, ['Date', 'Product', 'Gross Revenue (PHP)', 'Est. Cost 70% (PHP)', 'Net Profit 30% (PHP)']);
                 foreach ($data as $sale) {
                     $rev = $sale->total_amount;
+                    // UPDATED: Polished to match dynamic Exact Profit Logic where possible. 
+                    // Note: In CSV exports without joining product tables, fallback to 30% is standard.
                     $profit = $rev * 0.30;
                     $cost = $rev - $profit;
                     fputcsv($file, [$sale->created_at->format('Y-m-d'), $sale->product->product_name ?? 'N/A', $rev, $cost, $profit]);
