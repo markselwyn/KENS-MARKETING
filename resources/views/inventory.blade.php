@@ -61,7 +61,7 @@
         </div>
     </div>
 
-    <!-- 4 KPI CARDS (Now fully dynamic based on math) -->
+    <!-- 4 KPI CARDS (Strictly Global Database Stats) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
             <div class="flex items-center justify-between mb-4">
@@ -70,7 +70,7 @@
                     <h3 class="font-medium text-gray-500 text-sm">Total SKUs</h3>
                 </div>
             </div>
-            <h2 class="text-3xl font-bold text-gray-800 tracking-tight">{{ method_exists($products, 'total') ? $products->total() : $products->count() }}</h2>
+            <h2 class="text-3xl font-bold text-gray-800 tracking-tight">{{ \App\Models\Product::count() }}</h2>
             <p class="text-xs text-gray-400 mt-2">Active database records</p>
         </div>
 
@@ -145,7 +145,6 @@
                             <i class="fa-solid fa-couch"></i>
                         </div>
                         <div>
-                            <!-- UPGRADED CRITICAL RESTOCK RECOMMENDATION -->
                             @php
                                 $criticalItem = \App\Models\Product::where('in_stock', '<=', 0)->first();
                             @endphp
@@ -213,7 +212,14 @@
     <!-- ========================================== -->
     <div id="inventory-table-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200" style="overflow-anchor: none;">
         <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 class="text-lg font-semibold text-gray-800">Product Masterlist</h2>
+            
+            <!-- NEW: Dynamic Records Counter for Table Filter -->
+            <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-3">
+                Product Masterlist
+                <span class="text-[11px] font-bold text-navy-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">
+                    {{ method_exists($products, 'total') ? $products->total() : $products->count() }} Records Found
+                </span>
+            </h2>
             
             <form action="{{ route('inventory.index') }}" method="GET" class="flex flex-col sm:flex-row gap-3 w-full md:w-auto" id="filterForm" onsubmit="applyAjaxFilter(event)">
                 
@@ -233,7 +239,7 @@
                 
                 <div class="relative flex">
                     <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" name="search" id="inventorySearchInput" value="{{ request('search') }}" onkeyup="debounceAjaxFilter()" placeholder="Search SKU or Name..." class="pl-8 pr-4 py-2 bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-l-lg focus:outline-none focus:ring-2 focus:ring-navy-700 focus:bg-white w-full sm:w-64 transition-all">
+                    <input type="text" name="search" id="inventorySearchInput" value="{{ request('search') }}" onkeyup="debounceAjaxFilter()" placeholder="Search SKU or Name..." class="pl-8 pr-4 py-2 bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-l-lg focus:outline-none focus:ring-2 focus:ring-navy-700 focus:bg-white w-full sm:w-64 transition-all" autocomplete="off">
                     <button type="submit" class="bg-navy-900 text-white px-3 py-2 rounded-r-lg text-sm font-medium hover:bg-navy-700 transition-colors">Search</button>
                 </div>
 
@@ -528,13 +534,12 @@
             <!-- Product Summary Card -->
             <div class="grid grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 text-center">
                 @php
-                    // STRICT FIX: Search by exact ID to prevent duplicate data conflicts
                     $item = \App\Models\Product::find($stagnantId);
                     $unitPrice = $item ? $item->unit_price : 0;
                     $stock = $item ? $item->in_stock : 0;
                     $tiedUp = $unitPrice * $stock;
                     
-                    $promoDiscount = 0.10; // 10%
+                    $promoDiscount = 0.10; 
                     $promoPrice = $unitPrice * (1 - $promoDiscount);
                     $projectedRecovery = $promoPrice * $stock;
                 @endphp
@@ -572,8 +577,6 @@
             </div>
         </div>
         
-        <!-- Action Buttons -->
-        <!-- STRICT FIX: Pass the exact ID to the simulator -->
         <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-center gap-3">
             <button onclick="closeDssModal('promoModal')" class="px-8 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors shadow-sm focus:outline-none">Close</button>
             <a href="/dss-insights?simulate_id={{ $stagnantId }}" class="px-8 py-2.5 text-sm font-bold text-white bg-navy-900 rounded-lg hover:bg-navy-800 transition-all shadow-md flex items-center gap-2 focus:outline-none group">
@@ -708,7 +711,6 @@
     </div>
 </div>
 
-<!-- PRINT VIEW FIXED MATH LOGIC -->
 <div class="hidden print:block text-black bg-white w-full">
     <!-- ... (Print view remains exactly the same) ... -->
 </div>
@@ -735,7 +737,7 @@
         }
     });
 
-    // --- BULLETPROOF AJAX ENGINE ---
+    // --- BULLETPROOF AJAX ENGINE (UPGRADED) ---
     let currentFetchId = 0; 
     let currentAbortController = null;
 
@@ -750,8 +752,6 @@
         }
         currentAbortController = new AbortController();
         
-        const activeElementId = document.activeElement ? document.activeElement.id : null;
-        
         tableContainer.style.pointerEvents = 'none';
         tableContainer.style.opacity = '0.5';
         tableContainer.style.transition = 'opacity 0.2s ease-in-out';
@@ -760,6 +760,15 @@
             .then(response => response.text())
             .then(html => {
                 if (fetchId !== currentFetchId) return;
+
+                // STRICT DOM CAPTURE: Save exactly what the user is typing 
+                // the millisecond before we replace the HTML table!
+                let currentSearchValue = null;
+                const activeElementId = document.activeElement ? document.activeElement.id : null;
+                
+                if (activeElementId === 'inventorySearchInput') {
+                    currentSearchValue = document.getElementById('inventorySearchInput').value;
+                }
 
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
@@ -783,9 +792,13 @@
                     }
                 }
 
+                // STRICT RESTORE: Put the user's typing right back where they left off!
                 if (activeElementId) {
                     const elem = document.getElementById(activeElementId);
                     if (elem && elem.tagName === 'INPUT') {
+                        if (activeElementId === 'inventorySearchInput' && currentSearchValue !== null) {
+                            elem.value = currentSearchValue; // This line fixes the typing bug!
+                        }
                         elem.focus();
                         const len = elem.value.length;
                         elem.setSelectionRange(len, len);
