@@ -147,12 +147,11 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Customer / Reference</label>
-                        <input type="text" placeholder="e.g. Walk-in or Name" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors">
+                        <input type="text" name="customer_name" placeholder="e.g. Walk-in or Name" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors">
                     </div>
                     
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Select Item from Inventory</label>
-                        <!-- ADDED 'searchable-select' CLASS FOR JAVASCRIPT TARGETING -->
                         <select id="productSelect" name="product_id" class="searchable-select w-full" required onchange="updateMaxQuantity(); calculateTotal();">
                             <option value="" disabled selected>Choose item...</option>
                             @foreach($products as $product)
@@ -225,61 +224,99 @@
     <!-- ========================================== -->
     <!-- LIVE SALES LEDGER TABLE                    -->
     <!-- ========================================== -->
-    <div id="recent-sales-container" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
-        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
-            <h2 class="text-lg font-semibold text-gray-800">Recent Sales Ledger</h2>
-            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">Live Updates</span>
-        </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in delay-200">
         
-        <!-- ULTIMATE CSS FIX: Exact locked height guarantees 0 layout shift. Inner scroll handles overflow -->
-        <div class="overflow-x-auto overflow-y-auto locked-table-scroll" style="height: 700px;">
-            <table class="w-full text-sm text-left text-gray-500 relative">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm border-b border-gray-200">
-                    <tr>
-                        <th scope="col" class="px-6 py-4 font-semibold">Receipt No.</th>
-                        <th scope="col" class="px-6 py-4 font-semibold">Date & Time</th>
-                        <th scope="col" class="px-6 py-4 font-semibold">Customer</th>
-                        <th scope="col" class="px-6 py-4 font-semibold">Purchased Items</th>
-                        <th scope="col" class="px-6 py-4 font-semibold text-right">Total Amount</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @forelse($recentSales as $sale)
-                    <tr class="bg-white hover:bg-gray-50 transition-colors duration-200">
-                        <td class="px-6 py-4 font-medium text-navy-700">#RC-{{ str_pad($sale->id, 5, '0', STR_PAD_LEFT) }}</td>
-                        <td class="px-6 py-4 text-xs">{{ $sale->created_at->format('M d, Y') }} <br> <span class="text-gray-400">{{ $sale->created_at->format('h:i A') }}</span></td>
-                        <td class="px-6 py-4 text-gray-900 font-medium">Walk-in</td>
-                        <td class="px-6 py-4 text-xs font-bold">{{ $sale->quantity_sold }}x <span class="font-normal">{{ $sale->product->product_name ?? 'Deleted Item' }}</span></td>
-                        <td class="px-6 py-4 font-bold text-green-600 text-right">₱{{ number_format($sale->total_amount, 2) }}</td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">No sales transactions recorded yet.</td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Pagination sits securely below the locked table block -->
-        <div class="border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-            @if(method_exists($recentSales, 'links'))
-                <div class="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="text-sm text-gray-500 font-medium">
-                        Page <span class="text-navy-900 font-bold">{{ $recentSales->currentPage() }}</span> of <span class="text-navy-900 font-bold">{{ $recentSales->lastPage() }}</span>
-                    </div>
-                    <div class="w-full sm:w-auto overflow-x-auto">
-                        {{ $recentSales->links() }}
-                    </div>
+        <!-- HEADER & SEARCH ARE COMPLETELY ISOLATED OUTSIDE THE REFRESH ZONE -->
+        <div class="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white">
+            
+            <!-- ISOLATED HEADER FOR RECORD COUNTER UPDATE -->
+            <div id="sales-header-count">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-3">
+                        Recent Sales Ledger
+                        <span class="text-[11px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">
+                            {{ method_exists($recentSales, 'total') ? $recentSales->total() : $recentSales->count() }} Records Found
+                        </span>
+                    </h2>
                 </div>
-            @endif
+            </div>
+            
+            <!-- MODERN UNIFIED SEARCH BAR (Fixed Action Route to prevent URL stacking) -->
+            <form action="{{ route('sales.index') }}" id="salesFilterForm" class="w-full md:w-auto relative" onsubmit="event.preventDefault(); applyAjaxFilter();">
+                <div class="relative flex items-center w-full sm:w-80">
+                    <i class="fa-solid fa-search absolute left-3 text-gray-400 text-xs"></i>
+                    
+                    <!-- Search Input -->
+                    <input type="text" name="search" id="salesSearchInput" value="{{ request('search') }}" onkeyup="debounceAjaxFilter()" placeholder="Search Name, Item, or RC#..." class="pl-8 pr-16 py-2.5 bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-700 focus:bg-white w-full transition-all shadow-sm" autocomplete="off">
+                    
+                    <!-- Integrated Clear Button (X) -->
+                    <button type="button" id="salesClearBtn" onclick="clearSearch()" class="absolute right-10 text-gray-400 hover:text-red-500 transition-colors p-1" style="{{ request('search') ? 'display:block;' : 'display:none;' }}" title="Clear search">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+
+                    <!-- Safe Search Trigger (type="button" ignores global scripts) -->
+                    <button type="button" onclick="applyAjaxFilter()" class="absolute right-1 bg-navy-900 hover:bg-navy-800 text-white px-3 py-1.5 rounded-md transition-colors" title="Search">
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                </div>
+            </form>
         </div>
+        
+        <!-- ONLY THIS SECTION GETS REPLACED BY AJAX -->
+        <div id="sales-table-results">
+            <div class="overflow-x-auto overflow-y-auto locked-table-scroll" style="height: 700px;">
+                <table class="w-full text-sm text-left text-gray-500 relative">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+                        <tr>
+                            <th scope="col" class="px-6 py-4 font-semibold">Receipt No.</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Date & Time</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Customer</th>
+                            <th scope="col" class="px-6 py-4 font-semibold">Purchased Items</th>
+                            <th scope="col" class="px-6 py-4 font-semibold text-right">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($recentSales as $sale)
+                        <tr class="bg-white hover:bg-gray-50 transition-colors duration-200">
+                            <td class="px-6 py-4 font-medium text-navy-700">#RC-{{ str_pad($sale->id, 5, '0', STR_PAD_LEFT) }}</td>
+                            <td class="px-6 py-4 text-xs">{{ $sale->created_at->format('M d, Y') }} <br> <span class="text-gray-400">{{ $sale->created_at->format('h:i A') }}</span></td>
+                            <td class="px-6 py-4 text-gray-900 font-medium">{{ $sale->customer_name ?? 'Walk-in' }}</td>
+                            <td class="px-6 py-4 text-xs font-bold">{{ $sale->quantity_sold }}x <span class="font-normal">{{ $sale->product->product_name ?? 'Deleted Item' }}</span></td>
+                            <td class="px-6 py-4 font-bold text-green-600 text-right">₱{{ number_format($sale->total_amount, 2) }}</td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                @if(request('search'))
+                                    No sales transactions found matching "{{ request('search') }}".
+                                @else
+                                    No sales transactions recorded yet.
+                                @endif
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                @if(method_exists($recentSales, 'links') && $recentSales->hasPages())
+                    <div class="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="text-sm text-gray-500 font-medium">
+                            Page <span class="text-navy-900 font-bold">{{ $recentSales->currentPage() }}</span> of <span class="text-navy-900 font-bold">{{ $recentSales->lastPage() }}</span>
+                        </div>
+                        <div class="w-full sm:w-auto overflow-x-auto">
+                            {{ $recentSales->links() }}
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </div>
+        <!-- END AJAX REPLACEMENT SECTION -->
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<!-- ADD SELECT2 JS SCRIPT -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -298,7 +335,6 @@
         });
     });
 
-    // --- TOAST NOTIFICATION LOGIC ---
     function closeToast(id) {
         const toast = document.getElementById(id);
         if (toast) {
@@ -310,24 +346,16 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        if (document.getElementById('toast-success')) {
-            setTimeout(() => closeToast('toast-success'), 10000);
-        }
-        
-        if (document.getElementById('toast-error')) {
-            setTimeout(() => closeToast('toast-error'), 10000);
-        }
+        if (document.getElementById('toast-success')) setTimeout(() => closeToast('toast-success'), 10000);
+        if (document.getElementById('toast-error')) setTimeout(() => closeToast('toast-error'), 10000);
     });
 
-    // --- LIVE MATH CALCULATION FOR POS FORM ---
     function calculateTotal() {
         const select = document.getElementById('productSelect');
         const qtyInput = document.getElementById('qtyInput');
         const totalDueDisplay = document.getElementById('totalDueDisplay');
 
-        if (qtyInput.value !== "" && qtyInput.value < 1) {
-            qtyInput.value = 1;
-        }
+        if (qtyInput.value !== "" && qtyInput.value < 1) qtyInput.value = 1;
 
         if (select.selectedIndex > 0 && qtyInput.value > 0) {
             const price = parseFloat(select.options[select.selectedIndex].getAttribute('data-price'));
@@ -340,8 +368,7 @@
                 currentQty = stock; 
             }
 
-            const formattedTotal = (price * currentQty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            totalDueDisplay.value = formattedTotal;
+            totalDueDisplay.value = (price * currentQty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         } else {
             totalDueDisplay.value = '0.00';
         }
@@ -352,13 +379,11 @@
         const qtyInput = document.getElementById('qtyInput');
         
         if (select.selectedIndex > 0) {
-            const stock = select.options[select.selectedIndex].getAttribute('data-stock');
-            qtyInput.max = stock; 
+            qtyInput.max = select.options[select.selectedIndex].getAttribute('data-stock');
             qtyInput.value = 1; 
         }
     }
 
-    // --- LIVE CHART LOGIC ---
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('salesVelocityChart').getContext('2d');
         const liveChartData = @json($chartData);
@@ -395,13 +420,14 @@
         });
     });
 
-    // --- BULLETPROOF AJAX PAGINATION (NO JUMPS) ---
-    
+    // --- TRUE BULLETPROOF DOM ISOLATION AJAX ---
     let currentFetchId = 0; 
     let currentAbortController = null;
 
     function performAjaxFetch(url) {
-        const tableContainer = document.getElementById('recent-sales-container');
+        const tableContainer = document.getElementById('sales-table-results');
+        const headerCount = document.getElementById('sales-header-count');
+        
         if(!tableContainer) return;
         
         const fetchId = ++currentFetchId;
@@ -411,8 +437,6 @@
         }
         currentAbortController = new AbortController();
         
-        // Disable pointer events to cleanly prevent race-condition double clicks
-        tableContainer.style.pointerEvents = 'none'; 
         tableContainer.style.opacity = '0.5';
         tableContainer.style.transition = 'opacity 0.2s ease-in-out';
         
@@ -424,30 +448,66 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 
-                // Swap purely the inner HTML
-                tableContainer.innerHTML = doc.getElementById('recent-sales-container').innerHTML;
+                // UPDATE TABLE & RECORD COUNT (LEAVING THE SEARCH BAR UNTOUCHED)
+                tableContainer.innerHTML = doc.getElementById('sales-table-results').innerHTML;
+                if (headerCount && doc.getElementById('sales-header-count')) {
+                    headerCount.innerHTML = doc.getElementById('sales-header-count').innerHTML;
+                }
                 
-                // Re-enable clicks and restore opacity
-                tableContainer.style.pointerEvents = 'auto'; 
                 tableContainer.style.opacity = '1';
-                
                 window.history.pushState({}, '', url);
             })
             .catch(error => {
-                tableContainer.style.pointerEvents = 'auto'; 
+                tableContainer.style.opacity = '1'; 
                 if (error.name !== 'AbortError') {
-                    window.location.href = url; 
+                    console.error("AJAX Error:", error);
                 }
             });
     }
+    
+    let typingTimer;
+    function debounceAjaxFilter() {
+        clearTimeout(typingTimer);
+        
+        // Show/Hide the Clear button instantly while typing
+        const searchInput = document.getElementById('salesSearchInput');
+        const clearBtn = document.getElementById('salesClearBtn');
+        if(clearBtn) {
+            clearBtn.style.display = searchInput.value.trim().length > 0 ? 'block' : 'none';
+        }
+
+        typingTimer = setTimeout(function() {
+            applyAjaxFilter();
+        }, 500); 
+    }
+
+    function applyAjaxFilter(event = null) {
+        if (event) event.preventDefault();
+        const form = document.getElementById('salesFilterForm');
+        const formData = new FormData(form);
+        const searchParams = new URLSearchParams(formData).toString();
+        
+        // STRICT URL FIX: Grab absolute base path to prevent ?search stacking
+        const baseUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        const url = baseUrl + '?' + searchParams;
+        
+        performAjaxFetch(url);
+    }
+    
+    // Custom function to clear the search input immediately
+    function clearSearch() {
+        const input = document.getElementById('salesSearchInput');
+        input.value = '';
+        document.getElementById('salesClearBtn').style.display = 'none';
+        input.focus();
+        applyAjaxFilter();
+    }
 
     document.addEventListener("DOMContentLoaded", function() {
-        const tableContainer = document.getElementById('recent-sales-container');
-
+        const tableContainer = document.getElementById('sales-table-results');
         if (tableContainer) {
             tableContainer.addEventListener('click', function(e) {
                 const link = e.target.closest('a');
-                
                 if (link && link.href && link.href.includes('page=')) {
                     e.preventDefault(); 
                     performAjaxFetch(link.href);

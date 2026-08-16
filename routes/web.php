@@ -2,11 +2,12 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AdminController; 
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\DashboardController; 
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\ReportsController; 
-use App\Http\Controllers\DssInsightsController; // NEW: Imported the DSS Controller!
+use App\Http\Controllers\DssInsightsController; 
 
 // Redirect the root URL straight to the login page
 Route::get('/', function () {
@@ -17,13 +18,35 @@ Route::get('/', function () {
 // GUEST ROUTES (Accessible only if NOT logged in)
 // ==========================================
 Route::middleware('guest')->group(function () {
+    
     // Display the Login Page
-    Route::get('/login', function () {
-        return view('login'); // Points to resources/views/login.blade.php
-    })->name('login');
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 
     // Process the Login Form submission
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    
+    // Display the Registration Page
+    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    
+    // Process the Registration Form submission
+    Route::post('/register', [AuthController::class, 'register'])->name('register.post');
+
+    // ==========================================
+    // PASSWORD RECOVERY ROUTES
+    // ==========================================
+    // 1. Show the "Enter Email" form
+    Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+    
+    // 2. Process the "Enter Email" form and send the link
+    Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail'])->name('password.email');
+    
+    // 3. Show the "Enter New Password" form (User clicked the email link)
+    // NOTE: This must be named exactly 'password.reset' for Laravel's mailer to work
+    Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+    
+    // 4. Process the "Enter New Password" form and save to database
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+    
 });
 
 // ==========================================
@@ -34,10 +57,18 @@ Route::middleware('auth')->group(function () {
     // Process Logout
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+    // ==========================================
+    // Admin Security Hub
+    // ==========================================
+    Route::get('/admin/security', [AdminController::class, 'securityHub'])->name('admin.security');
+    Route::post('/admin/approve-staff/{id}', [AdminController::class, 'approveStaff'])->name('admin.approve');
+    Route::post('/admin/decline-staff/{id}', [AdminController::class, 'declineStaff'])->name('admin.decline');
+    Route::post('/admin/revoke-staff/{id}', [AdminController::class, 'revokeStaff'])->name('admin.revoke'); 
+
     // Main Dashboard Module
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
-    // GLOBAL LIVE SEARCH ROUTE (Option 1)
+    // GLOBAL LIVE SEARCH ROUTE
     Route::get('/global-search', [DashboardController::class, 'globalSearch'])->name('global.search');
 
     // ==========================================
@@ -73,8 +104,6 @@ Route::middleware('auth')->group(function () {
     // Decision Support System (DSS) Insights Module
     // ==========================================
     Route::get('/dss-insights', [DssInsightsController::class, 'index'])->name('dss-insights');
-    
-    // NEW: Apply Discount Route
     Route::post('/dss-insights/apply-discount', [DssInsightsController::class, 'applyDiscount'])->name('dss.apply-discount');
     
 });

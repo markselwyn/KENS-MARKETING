@@ -13,16 +13,33 @@ class SalesController extends Controller
     /**
      * Load the Sales UI and send it the products to sell.
      */
-    public function index()
+    public function index(Request $request)
     {
         // ==========================================
-        // 1. GET BASIC DATA (Eager Loading applied for speed)
+        // 1. GET BASIC DATA 
         // ==========================================
         $products = Product::where('in_stock', '>', 0)->orderBy('product_name', 'asc')->get();
         
-        // OPTIMIZATION APPLIED HERE: Replaced paginate(15) with paginate(10)
-        // This keeps the table shorter and cleaner on the frontend.
-        $recentSales = Sale::with('product')->orderBy('created_at', 'desc')->paginate(10);
+        // ==========================================
+        // UNIFIED SEARCH LOGIC FOR SALES LEDGER
+        // ==========================================
+        $query = Sale::with('product');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                // Search by Customer Name
+                $q->where('customer_name', 'like', "%{$search}%")
+                  // Or Search by Product Name (via relationship)
+                  ->orWhereHas('product', function($subQuery) use ($search) {
+                      $subQuery->where('product_name', 'like', "%{$search}%");
+                  })
+                  // Or Search by Receipt Number
+                  ->orWhere('id', 'like', "%{$search}%"); 
+            });
+        }
+
+        $recentSales = $query->orderBy('created_at', 'desc')->paginate(10)->appends($request->all());
 
         // ==========================================
         // 2. TOP METRIC CARDS MATH
@@ -33,7 +50,6 @@ class SalesController extends Controller
 
         // ==========================================
         // 3. TOP SELLERS
-        // Grouped by Product, counted by Quantity
         // ==========================================
         $topSellers = Sale::with('product')
             ->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
@@ -45,7 +61,6 @@ class SalesController extends Controller
 
         // ==========================================
         // 4. DSS ALGORITHM: WEEKEND FORECAST
-        // Finds the hottest item this week to predict weekend volume
         // ==========================================
         $forecastItem = Sale::with('product')
             ->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
@@ -59,7 +74,6 @@ class SalesController extends Controller
         $forecastValue = "₱0";
         
         if ($forecastItem && $forecastItem->product) {
-            // Predict a 20% surge on the weekend for the top selling item
             $projectedRevenue = $forecastItem->total_revenue * 1.20;
             $forecastValue = '₱' . number_format($projectedRevenue, 0);
             $forecastTitle = $forecastItem->product->product_name;
@@ -68,13 +82,12 @@ class SalesController extends Controller
 
         // ==========================================
         // 5. PEAK HOUR TRACER LOGIC
-        // Grouping today's sales into 2-hour blocks
         // ==========================================
-        $chartData = [0, 0, 0, 0, 0, 0]; // Represents: [8AM, 10AM, 12PM, 2PM, 4PM, 6PM]
+        $chartData = [0, 0, 0, 0, 0, 0]; 
         $salesToday = Sale::whereDate('created_at', Carbon::today())->get();
         
         foreach($salesToday as $sale) {
-            $hour = $sale->created_at->format('H'); // Gets hour in 24h format (00-23)
+            $hour = $sale->created_at->format('H'); 
             if($hour >= 7 && $hour < 9) $chartData[0] += $sale->total_amount;
             elseif($hour >= 9 && $hour < 11) $chartData[1] += $sale->total_amount;
             elseif($hour >= 11 && $hour < 13) $chartData[2] += $sale->total_amount;
@@ -83,57 +96,35 @@ class SalesController extends Controller
             elseif($hour >= 17 && $hour <= 23) $chartData[5] += $sale->total_amount;
         }
 
-        // Send everything to the view
         return view('sales', compact('products', 'recentSales', 'todaySales', 'weekSales', 'monthSales', 'topSellers', 'chartData', 'forecastTitle', 'forecastText', 'forecastValue'));
     }
 
     /**
      * Process a new sale, deduct stock, and trigger DSS alerts.
-     * Uses DB Transactions for strict data integrity.
      */
     public function store(Request $request)
     {
-        // ==========================================
-        // 1. STRICT BACKEND VALIDATION
-        // ==========================================
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity_sold' => 'required|integer|min:1'
+            'quantity_sold' => 'required|integer|min:1',
+            'customer_name' => 'nullable|string|max:255' // New Validation
         ], [
             'product_id.required' => 'Please select a valid product from the inventory.',
             'quantity_sold.min' => 'You must sell at least 1 item.'
         ]);
 
         try {
-            // ==========================================
-            // 2. DATABASE TRANSACTION
-            // Wraps the process in a protective bubble. If anything fails, 
-            // it cancels the whole thing to prevent missing stock or missing money.
-            // ==========================================
             DB::transaction(function () use ($request) {
                 
-                // Fetch the product and lock the row to prevent double-selling if two cashiers click at the exact same millisecond
                 $product = Product::lockForUpdate()->findOrFail($request->product_id);
 
-                // ==========================================
-                // 3. BACKEND FAILSAFE: INVENTORY CHECK
-                // ==========================================
                 if ($product->in_stock < $request->quantity_sold) {
                     throw new \Exception("Transaction blocked: Insufficient stock. Only {$product->in_stock} units of {$product->product_name} available.");
                 }
 
-                // ==========================================
-                // 4. BACKEND MATH: NEVER TRUST THE FRONTEND
-                // We recalculate the total price here using the secure database price
-                // ==========================================
                 $secureTotalAmount = $product->unit_price * $request->quantity_sold;
-
-                // ==========================================
-                // 5. DEDUCT INVENTORY & RECORD SALE
-                // ==========================================
                 $newStockLevel = $product->in_stock - $request->quantity_sold;
 
-                // DSS AUTOMATION: Recalculate the status based on the new stock level
                 $status = 'Healthy';
                 if ($newStockLevel == 0) {
                     $status = 'Out of Stock';
@@ -141,15 +132,14 @@ class SalesController extends Controller
                     $status = 'Low Stock';
                 }
 
-                // Save the updated stock and status back to the inventory
                 $product->update([
                     'in_stock' => $newStockLevel,
                     'status' => $status,
                 ]);
 
-                // Record the sale
                 Sale::create([
                     'product_id' => $product->id,
+                    'customer_name' => $request->customer_name ?: 'Walk-in', // Save name or default to Walk-in
                     'quantity_sold' => $request->quantity_sold,
                     'total_amount' => $secureTotalAmount,
                     'created_at' => Carbon::now(), 
@@ -157,11 +147,9 @@ class SalesController extends Controller
                 ]);
             });
 
-            // If everything succeeds, redirect back with the green success alert
             return redirect()->back()->with('success', 'Sale processed successfully! Inventory deducted.');
 
         } catch (\Exception $e) {
-            // If the failsafe triggers, redirect back with the red error alert
             return redirect()->back()->withErrors([$e->getMessage()]);
         }
     }

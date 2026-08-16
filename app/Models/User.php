@@ -20,6 +20,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role', // <-- This is the magic key for your Admin/Staff security!
+        'is_approved', // <-- Added this to handle the strict approval workflow!
     ];
 
     /**

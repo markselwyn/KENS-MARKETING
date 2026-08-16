@@ -20,12 +20,11 @@ class DashboardController extends Controller
         $totalOrders = Sale::count();
         $avgOrderValue = $totalOrders > 0 ? ($grossRevenue / $totalOrders) : 0;
         
-        // Polished: Exact Net Profit Calculation
-        // Calculates profit by subtracting an estimated 70% supplier cost per item sold
-        $netProfit = DB::table('sales')
-            ->join('products', 'sales.product_id', '=', 'products.id')
-            ->select(DB::raw('SUM(sales.total_amount - (products.unit_price * 0.70 * sales.quantity_sold)) as exact_profit'))
-            ->value('exact_profit') ?: 0;
+        // ==========================================
+        // FIXED: EXACT NET PROFIT CALCULATION
+        // ==========================================
+        // True 30% Profit Margin: Simply multiply Gross Revenue by 0.30
+        $netProfit = $grossRevenue * 0.30;
 
         // ==========================================
         // 2. DSS INVENTORY LOGIC
@@ -98,7 +97,7 @@ class DashboardController extends Controller
         // 6. REAL DYNAMIC SMART INSIGHTS ENGINE (DSS)
         // ==========================================
         
-        // --- Insight 1: Inventory Risk Assessment (UPDATED TERMINOLOGY)
+        // --- Insight 1: Inventory Risk Assessment 
         $criticalItem = Product::whereColumn('in_stock', '<=', 'reorder_point')
             ->orderBy('in_stock', 'asc')
             ->first();

@@ -78,6 +78,14 @@
                 <i class="fa-solid fa-lightbulb w-6 text-center text-lg shrink-0"></i>
                 <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">DSS Insights</span>
             </a>
+
+            <!-- ADMIN SECURITY HUB LINK (BULLETPROOF CHECK APPLIED) -->
+            @if(Auth::check() && strtolower(trim(Auth::user()->role)) === 'admin')
+            <a href="{{ route('admin.security') }}" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->routeIs('admin.security') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Security Hub">
+                <i class="fa-solid fa-shield-halved w-6 text-center text-lg shrink-0"></i>
+                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Security Hub</span>
+            </a>
+            @endif
         </nav>
 
         <div class="p-3 border-t border-navy-700/50">
@@ -123,14 +131,18 @@
                 </div>
                 <!-- / LIVE GLOBAL SEARCH BAR -->
 
-                <div class="flex items-center gap-3 cursor-pointer">
-                    <div class="w-9 h-9 bg-navy-900 text-white rounded-full flex items-center justify-center text-sm font-semibold shadow-sm hover:bg-navy-700 transition-colors">
-                        AD
+                <!-- DYNAMIC USER PROFILE (REPLACES HARDCODED 'AD Admin') -->
+                @if(Auth::check())
+                <div class="flex items-center gap-3 cursor-pointer border-l border-gray-200 pl-6 ml-2">
+                    <div class="w-9 h-9 bg-navy-900 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm hover:bg-navy-700 transition-colors uppercase">
+                        {{ substr(Auth::user()->name, 0, 2) }}
                     </div>
-                    <div class="hidden md:block text-sm">
-                        <p class="font-medium text-gray-700">Admin</p>
+                    <div class="hidden md:flex flex-col text-sm">
+                        <span class="font-semibold text-gray-800 leading-tight">{{ Auth::user()->name }}</span>
+                        <span class="text-[11px] text-gray-500 capitalize leading-tight font-medium">{{ strtolower(trim(Auth::user()->role)) }}</span>
                     </div>
                 </div>
+                @endif
             </div>
         </header>
 
