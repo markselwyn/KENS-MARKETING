@@ -16,9 +16,15 @@ class AuthController extends Controller
     /**
      * Show the login form.
      */
-    public function showLogin()
+    public function showLogin(Request $request)
     {
-        return view('login');
+        $portal = match (true) {
+            $request->routeIs('admin.login') => 'Admin',
+            $request->routeIs('staff.login') => 'Staff',
+            default => null,
+        };
+
+        return view('login', compact('portal'));
     }
 
     /**
@@ -92,13 +98,19 @@ class AuthController extends Controller
             
             // STRICT APPROVAL CHECK
             if (!Auth::user()->is_approved) {
+                $wasRevoked = Auth::user()->revoked_at !== null;
                 // Log that an unapproved user tried to get in
-                activity()->causedBy(Auth::user())->log("BLOCKED LOGIN: Unapproved user {$request->email} attempted to access the system.");
+                $accountState = $wasRevoked ? 'revoked' : 'unapproved';
+                activity()->causedBy(Auth::user())->log("BLOCKED LOGIN: {$accountState} user {$request->email} attempted to access the system.");
                 
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
                 
+                if ($wasRevoked) {
+                    return back()->withErrors(['email' => 'Your system access has been revoked by the Administrator.']);
+                }
+
                 return back()->with('success', 'Your account is still pending. Please wait for Admin confirmation to access the system.');
             }
 
@@ -178,7 +190,13 @@ class AuthController extends Controller
      */
     public function sendResetLinkEmail(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $request->validate(
+            ['email' => ['required', 'email']],
+            [
+                'email.required' => 'Enter the email address connected to your account.',
+                'email.email' => 'Enter a complete email address, such as name@example.com.',
+            ]
+        );
 
         // Laravel's built-in password broker handles generating the token and sending the email!
         $status = Password::sendResetLink(
@@ -203,11 +221,34 @@ class AuthController extends Controller
      */
     public function resetPassword(Request $request)
     {
-        $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
-            'password' => 'required|min:8|confirmed',
-        ]);
+        $request->validate(
+            [
+                'token' => ['required'],
+                'email' => ['required', 'email'],
+                'password' => [
+                    'bail',
+                    'required',
+                    'string',
+                    'min:8',
+                    'confirmed',
+                    function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                        $user = User::where('email', $request->input('email'))->first();
+
+                        if ($user && Hash::check($value, $user->password)) {
+                            $fail('Your new password must be different from your current password.');
+                        }
+                    },
+                ],
+            ],
+            [
+                'token.required' => 'This password reset link is incomplete. Request a new link and try again.',
+                'email.required' => 'The reset link is missing your email address. Request a new link and try again.',
+                'email.email' => 'The reset link contains an incorrectly formatted email address. Request a new link.',
+                'password.required' => 'Enter a new password.',
+                'password.min' => 'Your new password must contain at least 8 characters.',
+                'password.confirmed' => 'The password confirmation does not match your new password.',
+            ]
+        );
 
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -223,8 +264,22 @@ class AuthController extends Controller
         );
 
         // If successful, send them to login. If failed, send them back to the form with errors.
-        return $status === Password::PASSWORD_RESET
-                    ? redirect()->route('login')->with('success', __($status))
-                    : back()->withErrors(['email' => [__($status)]]);
+        if ($status === Password::PASSWORD_RESET) {
+            $user = User::where('email', $request->input('email'))->first();
+            $loginRoute = strtolower(trim($user?->role ?? '')) === 'admin'
+                ? 'admin.login'
+                : 'staff.login';
+
+            return redirect()->route($loginRoute)->with('success', 'Your password has been updated. You can now sign in.');
+        }
+
+        $message = match ($status) {
+            Password::INVALID_TOKEN => 'This password reset link has expired or has already been used. Request a new link.',
+            Password::INVALID_USER => 'No account was found for the email address in this reset link.',
+            Password::RESET_THROTTLED => 'Please wait before trying to reset your password again.',
+            default => 'We could not reset your password. Request a new link and try again.',
+        };
+
+        return back()->withInput($request->only('email'))->withErrors(['email' => $message]);
     }
 }

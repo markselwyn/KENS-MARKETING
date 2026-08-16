@@ -325,7 +325,7 @@
     $(document).ready(function() {
         $('.searchable-select').select2({
             placeholder: "Search or select an item...",
-            allowClear: true,
+            allowClear: false,
             width: '100%' 
         });
         

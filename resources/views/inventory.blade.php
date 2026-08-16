@@ -377,7 +377,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Initial Stock</label>
-                    <input type="number" name="in_stock" min="0" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors" required>
+                    <input type="number" name="in_stock" min="0" max="1000000" step="1" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors" required>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-navy-700 mb-1">Reorder Point</label>
@@ -442,7 +442,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
-                    <input type="number" name="in_stock" id="editStock" min="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors" required>
+                    <input type="number" name="in_stock" id="editStock" min="0" max="1000000" step="1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 bg-gray-50 focus:bg-white transition-colors" required>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-navy-700 mb-1">Reorder Point</label>
@@ -487,7 +487,8 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Delivered</label>
-                <input type="number" name="quantity_added" min="1" placeholder="e.g. 15" class="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-green-50/30 font-bold text-gray-800" required>
+                <input type="number" id="restockQuantityAdded" name="quantity_added" min="1" max="1000000" step="1" placeholder="e.g. 15" class="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-green-50/30 font-bold text-gray-800" required>
+                <p id="restockQuantityHelp" class="text-xs text-gray-500 mt-1">You can add up to <span id="restockMaximumQuantity" class="font-semibold">1,000,000</span> more items.</p>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -503,7 +504,7 @@
 
             <div class="pt-3 flex justify-end gap-3 border-t border-gray-100 mt-2">
                 <button type="button" onclick="closeRestockModal()" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button type="submit" class="px-5 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 shadow-md transition-all flex items-center gap-2">
+                <button type="submit" id="restockSubmitButton" class="px-5 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 shadow-md transition-all flex items-center gap-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none">
                     <i class="fa-solid fa-check"></i> Add to Inventory
                 </button>
             </div>
@@ -925,6 +926,33 @@
         document.getElementById('restockProductId').value = id;
         document.getElementById('restockProductName').textContent = name;
         document.getElementById('restockCurrentStock').textContent = currentStock;
+        const maximumQuantity = Math.max(0, 1000000 - Number(currentStock));
+        const quantityInput = document.getElementById('restockQuantityAdded');
+        const quantityHelp = document.getElementById('restockQuantityHelp');
+        const submitButton = document.getElementById('restockSubmitButton');
+        quantityInput.max = maximumQuantity;
+        quantityInput.value = '';
+        quantityInput.setCustomValidity('');
+        const productIsFull = maximumQuantity === 0;
+        quantityInput.disabled = productIsFull;
+        submitButton.disabled = productIsFull;
+        quantityHelp.className = productIsFull
+            ? 'text-xs text-red-600 font-medium mt-1'
+            : 'text-xs text-gray-500 mt-1';
+        quantityHelp.innerHTML = productIsFull
+            ? 'This product already has the maximum stock of 1,000,000 items. You cannot add more.'
+            : `You can add up to <span id="restockMaximumQuantity" class="font-semibold">${maximumQuantity.toLocaleString()}</span> more items.`;
+
+        quantityInput.oninput = () => {
+            const quantity = Number(quantityInput.value);
+            if (quantityInput.value && quantity < 1) {
+                quantityInput.setCustomValidity('Please enter at least 1 item.');
+            } else if (quantity > maximumQuantity) {
+                quantityInput.setCustomValidity(`You can only add up to ${maximumQuantity.toLocaleString()} more items to this product.`);
+            } else {
+                quantityInput.setCustomValidity('');
+            }
+        };
 
         restockModal.classList.remove('hidden');
         setTimeout(() => { 

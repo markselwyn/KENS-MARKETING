@@ -328,6 +328,12 @@
             
             forms.forEach(form => {
                 form.addEventListener('submit', function(e) {
+                    // A confirmation or validation handler may have cancelled submission.
+                    // Do not leave the button locked in the processing state when it has.
+                    if (e.defaultPrevented) {
+                        return;
+                    }
+
                     // Find the submit button inside the form
                     const submitBtn = this.querySelector('button[type="submit"]');
                     

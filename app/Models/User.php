@@ -21,6 +21,7 @@ class User extends Authenticatable
         'password',
         'role', // <-- This is the magic key for your Admin/Staff security!
         'is_approved', // <-- Added this to handle the strict approval workflow!
+        'revoked_at',
     ];
 
     /**
@@ -42,6 +43,8 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_approved' => 'boolean',
+            'revoked_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

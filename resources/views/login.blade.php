@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Ken's Marketing DSS</title>
+    <title>{{ $portal ? $portal.' Login' : 'Login' }} - Ken's Marketing DSS</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,11 +17,11 @@
             <img src="{{ asset('images/logo.png') }}" alt="Ken's Marketing Logo" class="h-24 w-auto mx-auto mb-4 object-contain">
             
             <h1 class="text-2xl font-bold text-gray-900">Ken's Marketing</h1>
-            <p class="text-sm text-gray-500 mt-1">Decision Support System Portal</p>
+            <p class="text-sm text-gray-500 mt-1">{{ $portal ? $portal.' Portal' : 'Decision Support System Portal' }}</p>
         </div>
 
         <div class="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-6">Sign in to your account</h2>
+            <h2 class="text-xl font-semibold text-gray-800 mb-6">{{ $portal ? 'Sign in to the '.$portal.' Portal' : 'Sign in to your account' }}</h2>
 
             <form action="{{ route('login.post') }}" method="POST" class="space-y-5">
                 @csrf

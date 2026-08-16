@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
+    private const MAX_STOCK = 1000000;
+
     /**
      * This loads your inventory.blade.php page 
      * and handles global server-side searching/filtering.
@@ -104,8 +106,10 @@ class InventoryController extends Controller
             'product_name' => 'required|string|max:255',
             'category' => 'required|string',
             'unit_price' => 'required|numeric|min:0',
-            'in_stock' => 'required|integer|min:0',
+            'in_stock' => 'required|integer|min:0|max:' . self::MAX_STOCK,
             'reorder_point' => 'required|integer|min:0',
+        ], [
+            'in_stock.max' => 'Stock cannot be more than 1,000,000 units per product.',
         ]);
 
         // 2. DSS Logic: Automatically determine the stock status
@@ -143,8 +147,10 @@ class InventoryController extends Controller
             'product_name' => 'required|string|max:255',
             'category' => 'required|string',
             'unit_price' => 'required|numeric|min:0',
-            'in_stock' => 'required|integer|min:0',
+            'in_stock' => 'required|integer|min:0|max:' . self::MAX_STOCK,
             'reorder_point' => 'required|integer|min:0',
+        ], [
+            'in_stock.max' => 'Stock cannot be more than 1,000,000 units per product.',
         ]);
 
         // 2. Find the specific product in the database
@@ -224,12 +230,24 @@ class InventoryController extends Controller
     {
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity_added' => 'required|integer|min:1',
+            'quantity_added' => 'required|integer|min:1|max:' . self::MAX_STOCK,
             'supplier' => 'nullable|string|max:255',
             'reference_no' => 'nullable|string|max:100',
+        ], [
+            'quantity_added.required' => 'Please enter how many items were delivered.',
+            'quantity_added.integer' => 'Please enter a whole number, like 1, 5, or 15. Do not use decimals.',
+            'quantity_added.min' => 'Please enter at least 1 item.',
+            'quantity_added.max' => 'That quantity is too large. Please enter a smaller number of items.',
         ]);
 
         $product = Product::findOrFail($request->product_id);
+        $maximumAddition = max(0, self::MAX_STOCK - (int) $product->in_stock);
+
+        $request->validate([
+            'quantity_added' => 'integer|max:' . $maximumAddition,
+        ], [
+            'quantity_added.max' => 'That delivery would make the total stock too large. You can add up to ' . number_format($maximumAddition) . ' items.',
+        ]);
 
         // 1. Log the incoming shipment in the ledger
         Restock::create([

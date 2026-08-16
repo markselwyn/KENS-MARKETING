@@ -44,7 +44,7 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fa-regular fa-envelope text-gray-400"></i>
                         </div>
-                        <input type="email" id="email" name="email" value="{{ $email ?? old('email') }}" class="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed" readonly required>
+                        <input type="email" id="email" name="email" value="{{ old('email', $email) }}" class="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed" readonly required>
                     </div>
                 </div>
 
@@ -55,9 +55,15 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fa-solid fa-lock text-gray-400"></i>
                         </div>
-                        <input type="password" id="password" name="password" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-navy-700 focus:bg-white transition-colors" placeholder="••••••••" required autofocus>
+                        <input type="password" id="password" name="password" class="w-full h-[42px] pl-10 pr-11 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-navy-700 focus:bg-white transition-colors" placeholder="••••••••" required autofocus>
+                        <button type="button" class="password-toggle absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none" data-target="password" aria-label="Show new password" aria-pressed="false">
+                            <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                        </button>
                     </div>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Must be at least 8 characters long.</p>
+                    <div class="mt-2 space-y-1 text-xs" aria-live="polite">
+                        <p id="length-requirement" class="text-gray-500"><i class="hidden" aria-hidden="true"></i>At least 8 characters (<span id="character-count">0</span>/8)</p>
+                        <p id="match-requirement" class="text-gray-500"><i class="hidden" aria-hidden="true"></i>Both password fields match</p>
+                    </div>
                 </div>
 
                 <!-- Confirm Password -->
@@ -67,7 +73,10 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fa-solid fa-shield-check text-gray-400"></i>
                         </div>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-navy-700 focus:bg-white transition-colors" placeholder="••••••••" required>
+                        <input type="password" id="password_confirmation" name="password_confirmation" class="w-full h-[42px] pl-10 pr-11 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-navy-700 focus:bg-white transition-colors" placeholder="••••••••" required>
+                        <button type="button" class="password-toggle absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none" data-target="password_confirmation" aria-label="Show password confirmation" aria-pressed="false">
+                            <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -78,5 +87,41 @@
             </form>
         </div>
     </div>
+
+    <script>
+        const password = document.getElementById('password');
+        const confirmation = document.getElementById('password_confirmation');
+        const characterCount = document.getElementById('character-count');
+        const lengthRequirement = document.getElementById('length-requirement');
+        const matchRequirement = document.getElementById('match-requirement');
+
+        function setRequirementState(element, satisfied) {
+            element.classList.toggle('text-gray-500', !satisfied);
+            element.classList.toggle('text-green-700', satisfied);
+            element.querySelector('i').className = satisfied
+                ? 'fa-solid fa-circle-check mr-1'
+                : 'hidden';
+        }
+
+        function updatePasswordPreview() {
+            characterCount.textContent = Math.min(password.value.length, 8);
+            setRequirementState(lengthRequirement, password.value.length >= 8);
+            setRequirementState(matchRequirement, confirmation.value.length > 0 && password.value === confirmation.value);
+        }
+
+        document.querySelectorAll('.password-toggle').forEach((button) => {
+            button.addEventListener('click', () => {
+                const input = document.getElementById(button.dataset.target);
+                const isVisible = input.type === 'text';
+                input.type = isVisible ? 'password' : 'text';
+                button.setAttribute('aria-pressed', String(!isVisible));
+                button.setAttribute('aria-label', `${isVisible ? 'Show' : 'Hide'} ${button.dataset.target === 'password' ? 'new password' : 'password confirmation'}`);
+                button.querySelector('i').className = isVisible ? 'fa-regular fa-eye' : 'fa-solid fa-eye-slash';
+            });
+        });
+
+        password.addEventListener('input', updatePasswordPreview);
+        confirmation.addEventListener('input', updatePasswordPreview);
+    </script>
 </body>
 </html>

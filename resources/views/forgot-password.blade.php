@@ -20,7 +20,7 @@
             <h2 class="text-xl font-semibold text-gray-800 mb-2">Forgot your password?</h2>
             <p class="text-sm text-gray-500 mb-6">No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.</p>
 
-            <form action="/forgot-password" method="POST" class="space-y-4">
+            <form action="{{ route('password.email') }}" method="POST" class="space-y-4">
                 @csrf
                 
                 <!-- Error Alert -->

@@ -21,6 +21,8 @@ Route::middleware('guest')->group(function () {
     
     // Display the Login Page
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('admin.login');
+    Route::get('/staff/login', [AuthController::class, 'showLogin'])->name('staff.login');
 
     // Process the Login Form submission
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
@@ -64,6 +66,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/approve-staff/{id}', [AdminController::class, 'approveStaff'])->name('admin.approve');
     Route::post('/admin/decline-staff/{id}', [AdminController::class, 'declineStaff'])->name('admin.decline');
     Route::post('/admin/revoke-staff/{id}', [AdminController::class, 'revokeStaff'])->name('admin.revoke'); 
+    Route::post('/admin/restore-staff/{id}', [AdminController::class, 'restoreStaff'])->name('admin.restore');
+    Route::delete('/admin/revoked-staff/{id}', [AdminController::class, 'deleteRevokedStaff'])->name('admin.revoked.delete');
 
     // Main Dashboard Module
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
