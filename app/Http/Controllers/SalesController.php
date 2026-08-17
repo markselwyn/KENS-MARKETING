@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use Carbon\Carbon; 
 use Illuminate\Support\Facades\DB; 
+use App\Support\SystemAudit;
 
 class SalesController extends Controller
 {
@@ -96,7 +97,18 @@ class SalesController extends Controller
             elseif($hour >= 17 && $hour <= 23) $chartData[5] += $sale->total_amount;
         }
 
-        return view('sales', compact('products', 'recentSales', 'todaySales', 'weekSales', 'monthSales', 'topSellers', 'chartData', 'forecastTitle', 'forecastText', 'forecastValue'));
+        // Current calendar week totals, Monday through Sunday.
+        $weeklyChartData = array_fill(0, 7, 0);
+        $weekStart = Carbon::now()->startOfWeek()->startOfDay();
+        $weekEnd = $weekStart->copy()->endOfWeek()->endOfDay();
+        $salesThisWeek = Sale::whereBetween('created_at', [$weekStart, $weekEnd])->get();
+
+        foreach ($salesThisWeek as $sale) {
+            $dayIndex = $sale->created_at->dayOfWeekIso - 1;
+            $weeklyChartData[$dayIndex] += (float) $sale->total_amount;
+        }
+
+        return view('sales', compact('products', 'recentSales', 'todaySales', 'weekSales', 'monthSales', 'topSellers', 'chartData', 'weeklyChartData', 'forecastTitle', 'forecastText', 'forecastValue'));
     }
 
     /**
@@ -137,7 +149,7 @@ class SalesController extends Controller
                     'status' => $status,
                 ]);
 
-                Sale::create([
+                $sale = Sale::create([
                     'product_id' => $product->id,
                     'customer_name' => $request->customer_name ?: 'Walk-in', // Save name or default to Walk-in
                     'quantity_sold' => $request->quantity_sold,
@@ -145,6 +157,26 @@ class SalesController extends Controller
                     'created_at' => Carbon::now(), 
                     'updated_at' => Carbon::now(),
                 ]);
+
+                SystemAudit::record(
+                    'Sales',
+                    'sale_recorded',
+                    'Recorded sale RC-' . str_pad((string) $sale->id, 5, '0', STR_PAD_LEFT)
+                        . ": {$sale->quantity_sold} x {$product->product_name} ({$product->sku}) for PHP "
+                        . number_format((float) $sale->total_amount, 2)
+                        . "; customer {$sale->customer_name}; {$newStockLevel} units remaining.",
+                    $sale,
+                    [
+                        'receipt_number' => 'RC-' . str_pad((string) $sale->id, 5, '0', STR_PAD_LEFT),
+                        'product_id' => $product->id,
+                        'sku' => $product->sku,
+                        'product_name' => $product->product_name,
+                        'customer_name' => $sale->customer_name,
+                        'quantity_sold' => (int) $sale->quantity_sold,
+                        'total_amount' => (float) $sale->total_amount,
+                        'stock_remaining' => $newStockLevel,
+                    ]
+                );
             });
 
             return redirect()->back()->with('success', 'Sale processed successfully! Inventory deducted.');

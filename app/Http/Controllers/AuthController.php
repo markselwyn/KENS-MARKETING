@@ -7,9 +7,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password; // <-- ADDED FOR EMAIL RESET
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Auth\Events\PasswordReset; // <-- ADDED FOR EMAIL RESET
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use App\Models\User;
+use App\Support\SystemAudit;
 
 class AuthController extends Controller
 {
@@ -36,6 +39,96 @@ class AuthController extends Controller
     }
 
     /**
+     * Display the signed-in user's profile and account settings.
+     */
+    public function profile()
+    {
+        return view('profile', ['user' => Auth::user()]);
+    }
+
+    /**
+     * Update the signed-in user's profile, photo, and optional password.
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        $originalName = $user->name;
+        $originalEmail = $user->email;
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'current_password' => ['nullable', 'required_with:password', 'current_password'],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+        ], [
+            'profile_photo.image' => 'Choose a valid profile image.',
+            'profile_photo.mimes' => 'The profile image must be a JPG, PNG, or WebP file.',
+            'profile_photo.max' => 'The profile image must not exceed 2 MB.',
+            'current_password.current_password' => 'The current password is incorrect.',
+            'password.confirmed' => 'The new password confirmation does not match.',
+        ]);
+
+        $oldPhotoPath = $user->profile_photo_path;
+        $newPhotoPath = null;
+
+        if ($request->hasFile('profile_photo')) {
+            $newPhotoPath = $request->file('profile_photo')->store('profile-photos', 'local');
+            $user->profile_photo_path = $newPhotoPath;
+        }
+
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
+
+        if (!empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
+        }
+
+        $user->save();
+
+        if ($newPhotoPath && $oldPhotoPath) {
+            Storage::disk('local')->delete($oldPhotoPath);
+        }
+
+        $changedFields = [];
+        if ($originalName !== $user->name) {
+            $changedFields[] = 'name';
+        }
+        if ($originalEmail !== $user->email) {
+            $changedFields[] = 'email';
+        }
+        if ($newPhotoPath) {
+            $changedFields[] = 'profile photo';
+        }
+        if (!empty($validated['password'])) {
+            $changedFields[] = 'password';
+        }
+
+        SystemAudit::record(
+            'Account',
+            'profile_updated',
+            "Updated profile for {$user->name}: " . ($changedFields ? implode(', ', $changedFields) : 'no account fields changed') . '.',
+            $user,
+            ['changed_fields' => $changedFields],
+            $user
+        );
+
+        return back()->with('success', 'Your profile has been updated.');
+    }
+
+    /**
+     * Serve the signed-in user's private profile photo.
+     */
+    public function profilePhoto(Request $request)
+    {
+        $photoPath = $request->user()->profile_photo_path;
+
+        abort_unless($photoPath && Storage::disk('local')->exists($photoPath), 404);
+
+        return response()->file(Storage::disk('local')->path($photoPath));
+    }
+
+    /**
      * Handle Staff Registration (Creates locked accounts pending Admin approval).
      */
     public function register(Request $request)
@@ -57,7 +150,14 @@ class AuthController extends Controller
         ]);
 
         // 3. Audit Trail: Log the new signup for the Admin Hub
-        activity()->log("NEW ACCOUNT REQUEST: {$user->name} ({$user->email}) registered and is awaiting approval.");
+        SystemAudit::record(
+            'Account',
+            'registration_requested',
+            "NEW ACCOUNT REQUEST: {$user->name} ({$user->email}) registered and is awaiting approval.",
+            $user,
+            ['account_state' => 'pending'],
+            $user
+        );
 
         // 4. Redirect to login with a clear notification
         return redirect()->route('login')->with('success', 'Account created! Please wait for Admin confirmation to access the system.');
@@ -72,6 +172,7 @@ class AuthController extends Controller
         $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'min:6'],
+            'remember' => ['nullable', 'boolean'],
         ]);
 
         // ==========================================
@@ -82,7 +183,13 @@ class AuthController extends Controller
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             
-            activity()->log("SECURITY ALERT: Brute force lockout triggered for {$request->input('email')} from IP {$request->ip()}. Locked for {$seconds}s.");
+            SystemAudit::record(
+                'Authentication',
+                'login_throttled',
+                "SECURITY ALERT: Brute force lockout triggered for {$request->input('email')} from IP {$request->ip()}. Locked for {$seconds}s.",
+                null,
+                ['email' => $request->input('email'), 'lock_seconds' => $seconds]
+            );
 
             return back()->withErrors([
                 'email' => "Too many login attempts. System locked. Please try again in {$seconds} seconds.",
@@ -101,7 +208,13 @@ class AuthController extends Controller
                 $wasRevoked = Auth::user()->revoked_at !== null;
                 // Log that an unapproved user tried to get in
                 $accountState = $wasRevoked ? 'revoked' : 'unapproved';
-                activity()->causedBy(Auth::user())->log("BLOCKED LOGIN: {$accountState} user {$request->email} attempted to access the system.");
+                SystemAudit::record(
+                    'Authentication',
+                    'login_blocked',
+                    "BLOCKED LOGIN: {$accountState} user {$request->email} attempted to access the system.",
+                    Auth::user(),
+                    ['account_state' => $accountState]
+                );
                 
                 Auth::logout();
                 $request->session()->invalidate();
@@ -123,16 +236,27 @@ class AuthController extends Controller
             $authUser = Auth::user();
 
             // Log successful login activity to Spatie
-            activity()
-                ->causedBy($authUser)
-                ->log("User {$authUser->name} logged into the system as {$authUser->role}.");
+            SystemAudit::record(
+                'Authentication',
+                'login_succeeded',
+                "User {$authUser->name} logged into the system as {$authUser->role}.",
+                $authUser,
+                [],
+                $authUser
+            );
 
             // Role-Based Redirection Strategy
-            if ($authUser->role === 'admin') {
-                return redirect()->intended('/dashboard');
+            if (strtolower(trim($authUser->role)) === 'admin') {
+                $allowedLandingPages = ['dashboard', 'inventory.index', 'sales.index', 'reports', 'dss-insights', 'admin.security'];
+                $landingPage = $authUser->appPreferences()['landing_page'];
+
+                return redirect()->intended(route(in_array($landingPage, $allowedLandingPages, true) ? $landingPage : 'dashboard'));
             }
-            
-            return redirect()->intended('/inventory');
+
+            $allowedLandingPages = ['dashboard', 'inventory.index', 'sales.index', 'reports', 'dss-insights'];
+            $landingPage = $authUser->appPreferences()['landing_page'];
+
+            return redirect()->intended(route(in_array($landingPage, $allowedLandingPages, true) ? $landingPage : 'inventory.index'));
         }
 
         // ==========================================
@@ -142,7 +266,13 @@ class AuthController extends Controller
         RateLimiter::hit($throttleKey);
         
         // Log the failed attempt silently
-        activity()->log("FAILED LOGIN: Attempt for {$request->input('email')} from IP {$request->ip()}.");
+        SystemAudit::record(
+            'Authentication',
+            'login_failed',
+            "FAILED LOGIN: Attempt for {$request->input('email')} from IP {$request->ip()}.",
+            null,
+            ['email' => $request->input('email')]
+        );
 
         // Return a generic secure failure message
         return back()->withErrors([
@@ -159,9 +289,14 @@ class AuthController extends Controller
         
         // Audit log the logout before clearing session context
         if ($user) {
-            activity()
-                ->causedBy($user)
-                ->log("User {$user->name} signed out.");
+            SystemAudit::record(
+                'Authentication',
+                'logout',
+                "User {$user->name} signed out.",
+                $user,
+                [],
+                $user
+            );
         }
 
         // Standard Laravel logout sequence
@@ -266,6 +401,18 @@ class AuthController extends Controller
         // If successful, send them to login. If failed, send them back to the form with errors.
         if ($status === Password::PASSWORD_RESET) {
             $user = User::where('email', $request->input('email'))->first();
+
+            if ($user) {
+                SystemAudit::record(
+                    'Account',
+                    'password_reset',
+                    "User {$user->name} reset their account password.",
+                    $user,
+                    [],
+                    $user
+                );
+            }
+
             $loginRoute = strtolower(trim($user?->role ?? '')) === 'admin'
                 ? 'admin.login'
                 : 'staff.login';

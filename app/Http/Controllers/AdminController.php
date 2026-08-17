@@ -12,7 +12,7 @@ class AdminController extends Controller
     /**
      * Display the Admin Security Hub
      */
-    public function securityHub()
+    public function securityHub(Request $request)
     {
         // 1. Bulletproof Security Check: Ignores spaces and capitalization
         $userRole = strtolower(trim(Auth::user()->role));
@@ -41,13 +41,94 @@ class AdminController extends Controller
             ->orderBy('revoked_at', 'desc')
             ->get();
 
-        // 5. Fetch the latest 50 system activities from the Spatie Audit Trail
-        $systemLogs = Activity::with('causer') 
+        $auditModules = [
+            'Account' => 'Account',
+            'Authentication' => 'Authentication',
+            'Sales' => 'Sales',
+            'Inventory' => 'Inventory',
+            'DSS Insights' => 'DSS Insights',
+            'Reports' => 'Reports',
+            'Settings' => 'Settings',
+            'legacy' => 'General / Legacy',
+        ];
+
+        $auditFilters = [
+            'search' => trim((string) $request->query('search', '')),
+            'role' => in_array($request->query('role'), ['admin', 'staff', 'system'], true)
+                ? $request->query('role')
+                : '',
+            'module' => array_key_exists((string) $request->query('module'), $auditModules)
+                ? (string) $request->query('module')
+                : '',
+            'period' => in_array($request->query('period'), ['today', '7_days', '30_days'], true)
+                ? $request->query('period')
+                : '',
+        ];
+
+        $activityQuery = Activity::with('causer');
+
+        if ($auditFilters['search'] !== '') {
+            $search = $auditFilters['search'];
+            $activityQuery->where(function ($query) use ($search) {
+                $query->where('description', 'like', "%{$search}%")
+                    ->orWhere('properties->actor_name', 'like', "%{$search}%")
+                    ->orWhere('properties->module', 'like', "%{$search}%")
+                    ->orWhereHasMorph('causer', [User::class], function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($auditFilters['role'] !== '') {
+            $role = $auditFilters['role'];
+            $activityQuery->where(function ($query) use ($role) {
+                $query->where('properties->actor_role', $role);
+
+                if ($role === 'system') {
+                    $query->orWhereNull('causer_id');
+                } else {
+                    $query->orWhereHasMorph('causer', [User::class], function ($userQuery) use ($role) {
+                        $userQuery->whereRaw('LOWER(TRIM(role)) = ?', [$role]);
+                    });
+                }
+            });
+        }
+
+        if ($auditFilters['module'] !== '') {
+            if ($auditFilters['module'] === 'legacy') {
+                $activityQuery->whereNull('properties->module');
+            } else {
+                $activityQuery->where('properties->module', $auditFilters['module']);
+            }
+        }
+
+        if ($auditFilters['period'] !== '') {
+            $from = match ($auditFilters['period']) {
+                'today' => now()->startOfDay(),
+                '7_days' => now()->subDays(7),
+                '30_days' => now()->subDays(30),
+            };
+            $activityQuery->where('created_at', '>=', $from);
+        }
+
+        // 5. Fetch the latest 50 activities that match the selected filters.
+        $systemLogs = $activityQuery
             ->orderBy('created_at', 'desc')
             ->take(50)
             ->get();
 
-        return view('admin-security', compact('pendingUsers', 'approvedStaff', 'revokedUsers', 'systemLogs'));
+        $hasAuditFilters = collect($auditFilters)->contains(fn ($value) => $value !== '');
+
+        return view('admin-security', compact(
+            'pendingUsers',
+            'approvedStaff',
+            'revokedUsers',
+            'systemLogs',
+            'auditFilters',
+            'auditModules',
+            'hasAuditFilters'
+        ));
     }
 
     /**

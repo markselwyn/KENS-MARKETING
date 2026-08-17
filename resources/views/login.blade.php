@@ -51,6 +51,7 @@
                         </div>
                         <input type="email" id="email" name="email" 
                             value="{{ old('email') }}" 
+                            autocomplete="username"
                             class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border {{ $errors->has('email') ? 'border-red-400 focus:ring-red-500' : 'border-gray-200 focus:ring-navy-700' }} rounded-lg text-sm focus:outline-none focus:ring-2 focus:bg-white transition-colors" 
                             placeholder="admin@kensmarketing.com" required autofocus>
                     </div>
@@ -67,6 +68,7 @@
                             <i class="fa-solid fa-lock text-gray-400"></i>
                         </div>
                         <input type="password" id="password" name="password" 
+                            autocomplete="current-password"
                             class="w-full pl-10 pr-10 py-2.5 bg-gray-50 border {{ $errors->has('password') ? 'border-red-400 focus:ring-red-500' : 'border-gray-200 focus:ring-navy-700' }} rounded-lg text-sm focus:outline-none focus:ring-2 focus:bg-white transition-colors" 
                             placeholder="••••••••" required>
                         
@@ -76,14 +78,8 @@
                     </div>
                 </div>
 
-                <!-- Remember Me & Create Account Link -->
-                <div class="flex items-center justify-between pt-1">
-                    <div class="flex items-center">
-                        <input id="remember" name="remember" type="checkbox" {{ old('remember') ? 'checked' : '' }} class="h-4 w-4 text-navy-700 focus:ring-navy-900 border-gray-300 rounded cursor-pointer">
-                        <label for="remember" class="ml-2 block text-sm text-gray-600 cursor-pointer select-none">
-                            Remember me
-                        </label>
-                    </div>
+                <!-- Create Account Link -->
+                <div class="flex items-center justify-end pt-1">
                     <a href="{{ route('register') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 hover:underline transition-colors">
                         Create an account
                     </a>

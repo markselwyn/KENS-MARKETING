@@ -46,17 +46,13 @@
         <div>
             <p class="text-gray-500 text-sm">Monitor stock levels and system restock recommendations.</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex gap-3 ml-auto pl-4">
             <button onclick="openImportModal()" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:shadow transition-all duration-200 flex items-center gap-2">
                 <i class="fa-solid fa-file-excel text-green-600"></i> Import Excel
             </button>
             
             <button onclick="openAddProductModal()" class="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:shadow transition-all duration-200 flex items-center gap-2">
                 <i class="fa-solid fa-plus"></i> Add New Product
-            </button>
-            
-            <button onclick="window.print()" class="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-700 hover:shadow-lg transition-all duration-200 flex items-center gap-2">
-                <i class="fa-solid fa-print"></i> Print Stock Report
             </button>
         </div>
     </div>

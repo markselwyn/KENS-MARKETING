@@ -9,6 +9,7 @@ use App\Models\Sale;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\ProductsImport;
 use Illuminate\Support\Facades\DB; 
+use App\Support\SystemAudit;
 
 class InventoryController extends Controller
 {
@@ -121,7 +122,7 @@ class InventoryController extends Controller
         }
 
         // 3. Save the new product to the database
-        Product::create([
+        $product = Product::create([
             'sku' => $request->sku,
             'product_name' => $request->product_name,
             'category' => $request->category,
@@ -130,6 +131,20 @@ class InventoryController extends Controller
             'reorder_point' => $request->reorder_point,
             'status' => $status,
         ]);
+
+        SystemAudit::record(
+            'Inventory',
+            'product_created',
+            "Added product {$product->product_name} ({$product->sku}) with {$product->in_stock} units at PHP " . number_format((float) $product->unit_price, 2) . ' each.',
+            $product,
+            [
+                'sku' => $product->sku,
+                'category' => $product->category,
+                'unit_price' => (float) $product->unit_price,
+                'stock' => (int) $product->in_stock,
+                'reorder_point' => (int) $product->reorder_point,
+            ]
+        );
 
         // 4. Send them back to the inventory page
         return redirect()->route('inventory.index')->with('success', 'Product added successfully!');
@@ -155,6 +170,7 @@ class InventoryController extends Controller
 
         // 2. Find the specific product in the database
         $product = Product::findOrFail($request->id);
+        $before = $product->only(['sku', 'product_name', 'category', 'unit_price', 'in_stock', 'reorder_point', 'status']);
 
         // 3. DSS Logic: Recalculate status in case they changed the stock level
         $status = 'Available';
@@ -175,6 +191,22 @@ class InventoryController extends Controller
             'status' => $status,
         ]);
 
+        $changes = $product->getChanges();
+        unset($changes['updated_at']);
+
+        $changeSummary = collect($changes)
+            ->map(fn ($value, $field) => str_replace('_', ' ', $field) . ': ' . ($before[$field] ?? 'none') . " -> {$value}")
+            ->values()
+            ->implode('; ');
+
+        SystemAudit::record(
+            'Inventory',
+            'product_updated',
+            "Updated product {$product->product_name} ({$product->sku})" . ($changeSummary ? ": {$changeSummary}." : ' with no field changes.'),
+            $product,
+            ['before' => $before, 'after' => $product->only(array_keys($before))]
+        );
+
         return redirect()->route('inventory.index')->with('success', 'Product updated successfully!');
     }
 
@@ -186,8 +218,17 @@ class InventoryController extends Controller
         // Make sure the ID exists before trying to delete it
         $request->validate(['id' => 'required|exists:products,id']);
         
-        // Destroy it!
-        Product::destroy($request->id);
+        $product = Product::findOrFail($request->id);
+
+        SystemAudit::record(
+            'Inventory',
+            'product_deleted',
+            "Deleted product {$product->product_name} ({$product->sku}); its stock level was {$product->in_stock} units.",
+            $product,
+            $product->only(['sku', 'product_name', 'category', 'unit_price', 'in_stock', 'reorder_point', 'status'])
+        );
+
+        $product->delete();
         
         return redirect()->route('inventory.index')->with('success', 'Product deleted successfully!');
     }
@@ -205,14 +246,23 @@ class InventoryController extends Controller
 
         try {
             // 2. Use the package to read the file using our custom map
-            Excel::import(new ProductsImport, $request->file('excel_file'));
-            
-            // 3. Security! Log this action for the Admin Audit Trail
-            if (auth()->check()) {
-                activity()
-                    ->causedBy(auth()->user())
-                    ->log("Imported bulk products from an Excel file.");
-            }
+            $import = new ProductsImport;
+            Excel::import($import, $request->file('excel_file'));
+
+            $fileName = $request->file('excel_file')->getClientOriginalName();
+            SystemAudit::record(
+                'Inventory',
+                'products_imported',
+                "Imported inventory file {$fileName}: {$import->processed} rows processed, {$import->created} products created, and {$import->updated} products updated.",
+                null,
+                [
+                    'file_name' => $fileName,
+                    'rows_processed' => $import->processed,
+                    'products_created' => $import->created,
+                    'products_updated' => $import->updated,
+                    'sample_skus' => $import->skus,
+                ]
+            );
 
             // 4. Send them back to the page 
             return back()->with('success', 'Excel file imported successfully!');
@@ -249,12 +299,16 @@ class InventoryController extends Controller
             'quantity_added.max' => 'That delivery would make the total stock too large. You can add up to ' . number_format($maximumAddition) . ' items.',
         ]);
 
+        $oldStockLevel = (int) $product->in_stock;
+        $supplier = $request->supplier ?: 'Direct Supplier';
+        $referenceNo = $request->reference_no ?: 'DR-' . time();
+
         // 1. Log the incoming shipment in the ledger
-        Restock::create([
+        $restock = Restock::create([
             'product_id' => $product->id,
             'quantity_added' => $request->quantity_added,
-            'supplier' => $request->supplier ?? 'Direct Supplier',
-            'reference_no' => $request->reference_no ?? 'DR-' . time(),
+            'supplier' => $supplier,
+            'reference_no' => $referenceNo,
         ]);
 
         // 2. INCREASE THE STOCK
@@ -273,6 +327,22 @@ class InventoryController extends Controller
             'in_stock' => $newStockLevel,
             'status' => $status,
         ]);
+
+        SystemAudit::record(
+            'Inventory',
+            'product_restocked',
+            "Restocked {$product->product_name} ({$product->sku}) by {$request->quantity_added} units: stock {$oldStockLevel} -> {$newStockLevel}; supplier {$supplier}; reference {$referenceNo}.",
+            $restock,
+            [
+                'product_id' => $product->id,
+                'sku' => $product->sku,
+                'quantity_added' => (int) $request->quantity_added,
+                'stock_before' => $oldStockLevel,
+                'stock_after' => $newStockLevel,
+                'supplier' => $supplier,
+                'reference_no' => $referenceNo,
+            ]
+        );
 
         return back()->with('success', 'Shipment logged! Added ' . $request->quantity_added . ' units to ' . $product->product_name . '. Status recalculated.');
     }

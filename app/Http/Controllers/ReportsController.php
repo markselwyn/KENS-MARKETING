@@ -8,6 +8,8 @@ use App\Models\Report;
 use App\Models\Product; 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use App\Support\SystemAudit;
 
 class ReportsController extends Controller
 {
@@ -77,9 +79,14 @@ class ReportsController extends Controller
 
     public function generate(Request $request)
     {
+        $availableQuarters = array_map(
+            fn (int $quarter) => "q{$quarter}",
+            range(1, Carbon::now()->quarter)
+        );
+
         $request->validate([
-            'report_type' => 'required|string',
-            'timeframe' => 'required|string',
+            'report_type' => 'required|in:sales_summary,inventory_audit,fast_slow,profit_margin',
+            'timeframe' => ['required', Rule::in(array_merge(['today', 'this_week', 'this_month', 'last_month'], $availableQuarters))],
             'format' => 'required|in:pdf,excel',
         ]);
 
@@ -90,16 +97,33 @@ class ReportsController extends Controller
             'profit_margin' => 'Profit Margin Analysis'
         ];
 
-        // Format timeframe for the title (e.g., 'last_month' becomes 'Last Month')
-        $timeLabel = ucwords(str_replace('_', ' ', $request->timeframe));
-        $reportName = $timeLabel . ' - ' . $typeNames[$request->report_type];
+        $period = $this->resolveTimeframe($request->timeframe, Carbon::now());
+        $reportName = $period['label'] . ' - ' . $typeNames[$request->report_type];
 
-        Report::create([
+        $report = Report::create([
             'report_name' => $reportName,
             'report_type' => $request->report_type,
+            'timeframe' => $request->timeframe,
+            'period_start' => $period['start'],
+            'period_end' => $period['end'],
             'format' => $request->format,
             'prepared_by' => auth()->check() ? auth()->user()->name : 'Admin (System)',
         ]);
+
+        SystemAudit::record(
+            'Reports',
+            'report_generated',
+            "Generated {$request->format} report '{$reportName}' covering "
+                . $period['start']->format('M d, Y') . ' to ' . $period['end']->format('M d, Y') . '.',
+            $report,
+            [
+                'report_type' => $request->report_type,
+                'timeframe' => $request->timeframe,
+                'format' => $request->format,
+                'period_start' => $period['start']->toDateString(),
+                'period_end' => $period['end']->toDateString(),
+            ]
+        );
 
         return back()->with('success', "Success! Your " . strtoupper($request->format) . " report is ready. Click the Open PDF or Download icon in the archive below to access it.");
     }
@@ -109,27 +133,26 @@ class ReportsController extends Controller
      */
     private function getAccurateReportData($report)
     {
-        $now = Carbon::now();
-        $name = strtolower($report->report_name);
-
-        // 1. BULLETPROOF DATE BOUNDARIES
-        if (str_contains($name, 'today')) {
-            $start = $now->copy()->startOfDay();
-            $end = $now->copy()->endOfDay();
-        } elseif (str_contains($name, 'this week')) {
-            $start = $now->copy()->startOfWeek();
-            $end = $now->copy()->endOfWeek();
-        } elseif (str_contains($name, 'last month')) {
-            $start = $now->copy()->subMonth()->startOfMonth();
-            $end = $now->copy()->subMonth()->endOfMonth();
-        } elseif (str_contains($name, 'q1') || str_contains($name, 'quarter 1')) {
-            // Your dropdown is Jan-Apr (Months 1 to 4)
-            $start = $now->copy()->month(1)->startOfMonth();
-            $end = $now->copy()->month(4)->endOfMonth();
+        if ($report->period_start && $report->period_end) {
+            $start = Carbon::parse($report->period_start)->startOfDay();
+            $end = Carbon::parse($report->period_end)->endOfDay();
         } else {
-            // Default to This Month
-            $start = $now->copy()->startOfMonth();
-            $end = $now->copy()->endOfMonth();
+            // Backward-compatible fallback for reports created before periods were stored.
+            $name = strtolower($report->report_name);
+            $legacyTimeframe = match (true) {
+                str_contains($name, 'today') => 'today',
+                str_contains($name, 'this week') => 'this_week',
+                str_contains($name, 'last month') => 'last_month',
+                str_contains($name, 'quarter 1'), str_contains($name, 'q1') => 'q1',
+                str_contains($name, 'quarter 2'), str_contains($name, 'q2') => 'q2',
+                str_contains($name, 'quarter 3'), str_contains($name, 'q3') => 'q3',
+                str_contains($name, 'quarter 4'), str_contains($name, 'q4') => 'q4',
+                default => 'this_month',
+            };
+            $referenceDate = Carbon::parse($report->created_at ?? now());
+            $period = $this->resolveTimeframe($report->timeframe ?: $legacyTimeframe, $referenceDate);
+            $start = $period['start'];
+            $end = $period['end'];
         }
 
         $type = $report->report_type;
@@ -167,10 +190,66 @@ class ReportsController extends Controller
         return ['type' => $type, 'data' => $data];
     }
 
+    /**
+     * Resolve a named timeframe to exact inclusive calendar boundaries.
+     */
+    private function resolveTimeframe(string $timeframe, Carbon $referenceDate): array
+    {
+        $year = $referenceDate->year;
+
+        return match ($timeframe) {
+            'today' => [
+                'label' => $referenceDate->format('F j, Y'),
+                'start' => $referenceDate->copy()->startOfDay(),
+                'end' => $referenceDate->copy()->endOfDay(),
+            ],
+            'this_week' => [
+                'label' => 'This Week',
+                'start' => $referenceDate->copy()->startOfWeek()->startOfDay(),
+                'end' => $referenceDate->copy()->endOfWeek()->endOfDay(),
+            ],
+            'last_month' => [
+                'label' => $referenceDate->copy()->subMonth()->format('F Y'),
+                'start' => $referenceDate->copy()->subMonth()->startOfMonth(),
+                'end' => $referenceDate->copy()->subMonth()->endOfMonth(),
+            ],
+            'q1' => $this->quarterPeriod(1, $year),
+            'q2' => $this->quarterPeriod(2, $year),
+            'q3' => $this->quarterPeriod(3, $year),
+            'q4' => $this->quarterPeriod(4, $year),
+            default => [
+                'label' => $referenceDate->format('F Y'),
+                'start' => $referenceDate->copy()->startOfMonth(),
+                'end' => $referenceDate->copy()->endOfMonth(),
+            ],
+        };
+    }
+
+    private function quarterPeriod(int $quarter, int $year): array
+    {
+        $startMonth = (($quarter - 1) * 3) + 1;
+        $start = Carbon::create($year, $startMonth, 1)->startOfDay();
+        $end = $start->copy()->addMonths(2)->endOfMonth()->endOfDay();
+
+        return [
+            'label' => "Quarter {$quarter} ({$start->format('M')} - {$end->format('M')} {$year})",
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
     public function viewArchive($id)
     {
         $report = Report::findOrFail($id);
         $reportData = $this->getAccurateReportData($report);
+
+        SystemAudit::record(
+            'Reports',
+            'report_viewed',
+            "Opened archived {$report->format} report '{$report->report_name}'.",
+            $report,
+            ['report_type' => $report->report_type, 'timeframe' => $report->timeframe]
+        );
 
         return view('report-print', [
             'report' => $report, 
@@ -183,6 +262,14 @@ class ReportsController extends Controller
     {
         $report = Report::findOrFail($id);
         $reportData = $this->getAccurateReportData($report);
+
+        SystemAudit::record(
+            'Reports',
+            'report_downloaded',
+            "Downloaded archived report '{$report->report_name}' as CSV.",
+            $report,
+            ['report_type' => $report->report_type, 'timeframe' => $report->timeframe, 'download_format' => 'csv']
+        );
         
         $type = $reportData['type'];
         $data = $reportData['data'];
@@ -249,6 +336,20 @@ class ReportsController extends Controller
     public function destroy($id)
     {
         $report = Report::findOrFail($id);
+
+        SystemAudit::record(
+            'Reports',
+            'report_deleted',
+            "Deleted archived {$report->format} report '{$report->report_name}'.",
+            $report,
+            [
+                'report_type' => $report->report_type,
+                'timeframe' => $report->timeframe,
+                'format' => $report->format,
+                'prepared_by' => $report->prepared_by,
+            ]
+        );
+
         $report->delete();
 
         return back()->with('success', 'Report successfully deleted from the archive.');

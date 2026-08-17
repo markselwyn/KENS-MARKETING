@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Sale;
 use Illuminate\Support\Facades\DB;
+use App\Support\SystemAudit;
 
 class DssInsightsController extends Controller
 {
@@ -116,6 +117,21 @@ class DssInsightsController extends Controller
         $product->unit_price = $request->new_price;
         $product->promo_applied_at = now();
         $product->save();
+
+        SystemAudit::record(
+            'DSS Insights',
+            'discount_applied',
+            "Applied a {$request->discount_percent}% markdown to {$product->product_name} ({$product->sku}): PHP "
+                . number_format((float) $oldPrice, 2) . ' -> PHP ' . number_format((float) $product->unit_price, 2) . '.',
+            $product,
+            [
+                'sku' => $product->sku,
+                'discount_percent' => (int) $request->discount_percent,
+                'old_price' => (float) $oldPrice,
+                'new_price' => (float) $product->unit_price,
+                'monitor_until' => now()->addDays(14)->toIso8601String(),
+            ]
+        );
 
         return redirect()->back()->with('success', "Price for '{$product->product_name}' updated from ₱" . number_format($oldPrice, 2) . " to ₱" . number_format($request->new_price, 2) . " ({$request->discount_percent}% Markdown applied). System will monitor performance for 14 days.");
     }

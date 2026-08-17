@@ -11,13 +11,21 @@ use Maatwebsite\Excel\Concerns\SkipsUnknownSheets;
 
 class ProductsImport implements WithMultipleSheets, SkipsUnknownSheets 
 {
+    public int $created = 0;
+
+    public int $updated = 0;
+
+    public int $processed = 0;
+
+    public array $skus = [];
+
     public function sheets(): array
     {
         // Dynamic Allocation: Prepare up to 20 sheet slots. 
         // SkipsUnknownSheets will safely ignore the ones that don't actually exist in the file.
         $sheets = [];
         for ($i = 0; $i < 20; $i++) {
-            $sheets[$i] = new SheetImport();
+            $sheets[$i] = new SheetImport($this);
         }
         
         return $sheets;
@@ -31,6 +39,10 @@ class ProductsImport implements WithMultipleSheets, SkipsUnknownSheets
 
 class SheetImport implements ToCollection, WithHeadingRow
 {
+    public function __construct(private readonly ProductsImport $summary)
+    {
+    }
+
     /**
      * Skip the first 3 rows. Start grabbing data on Row 4 where the real headers are.
      */
@@ -70,6 +82,8 @@ class SheetImport implements ToCollection, WithHeadingRow
             // 4. Save to Database
             // FIX: We now search by SKU instead of Product Name! 
             // If the SKU exists, it updates the stock/name. If it doesn't, it creates a new row.
+            $alreadyExists = Product::where('sku', $sku)->exists();
+
             Product::updateOrCreate(
                 ['sku' => $sku], // <-- SEARCH CRITERIA
                 [
@@ -81,6 +95,13 @@ class SheetImport implements ToCollection, WithHeadingRow
                     'status' => $status,
                 ]
             );
+
+            $this->summary->processed++;
+            $alreadyExists ? $this->summary->updated++ : $this->summary->created++;
+
+            if (count($this->summary->skus) < 50) {
+                $this->summary->skus[] = $sku;
+            }
         }
     }
 }

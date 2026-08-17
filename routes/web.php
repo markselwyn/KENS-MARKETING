@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SalesController;
 use App\Http\Controllers\ReportsController; 
 use App\Http\Controllers\DssInsightsController; 
+use App\Http\Controllers\SettingsController;
 
 // Redirect the root URL straight to the login page
 Route::get('/', function () {
@@ -58,6 +59,16 @@ Route::middleware('auth')->group(function () {
     
     // Process Logout
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // User Profile
+    Route::get('/profile', [AuthController::class, 'profile'])->name('profile');
+    Route::patch('/profile', [AuthController::class, 'updateProfile'])->name('profile.update');
+    Route::get('/profile/photo', [AuthController::class, 'profilePhoto'])->name('profile.photo');
+
+    // Application Settings
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
+    Route::patch('/settings', [SettingsController::class, 'update'])->name('settings.update');
+    Route::patch('/settings/sidebar', [SettingsController::class, 'updateSidebar'])->name('settings.sidebar.update');
 
     // ==========================================
     // Admin Security Hub

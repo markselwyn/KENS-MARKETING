@@ -36,6 +36,54 @@
     .select2-container--default .select2-results__option--highlighted[aria-selected] {
         background-color: #17507E !important; /* Navy 900 */
     }
+
+    /* Keep the searchable product dropdown consistent with application dark mode. */
+    .dark .select2-container .select2-selection--single {
+        background-color: #1e293b !important;
+        border-color: #475569 !important;
+    }
+    .dark .select2-container--default.select2-container--focus .select2-selection--single,
+    .dark .select2-container--default.select2-container--open .select2-selection--single {
+        border-color: #60a5fa !important;
+        box-shadow: 0 0 0 2px rgb(96 165 250 / 0.2) !important;
+    }
+    .dark .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: #f8fafc !important;
+    }
+    .dark .select2-container--default .select2-selection--single .select2-selection__placeholder {
+        color: #94a3b8 !important;
+    }
+    .dark .select2-container--default .select2-selection--single .select2-selection__arrow b {
+        border-color: #94a3b8 transparent transparent transparent !important;
+    }
+    .dark .select2-container--default.select2-container--open .select2-selection--single .select2-selection__arrow b {
+        border-color: transparent transparent #94a3b8 transparent !important;
+    }
+    .dark .select2-dropdown,
+    .dark .select2-search--dropdown {
+        background-color: #0f172a !important;
+        border-color: #475569 !important;
+    }
+    .dark .select2-search--dropdown .select2-search__field {
+        background-color: #1e293b !important;
+        border-color: #475569 !important;
+        color: #f8fafc !important;
+    }
+    .dark .select2-results__options {
+        background-color: #0f172a !important;
+    }
+    .dark .select2-container--default .select2-results__option {
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+    }
+    .dark .select2-container--default .select2-results__option[aria-selected="true"] {
+        background-color: #1e3a8a !important;
+        color: #dbeafe !important;
+    }
+    .dark .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #17507E !important;
+        color: #ffffff !important;
+    }
     
     /* Custom Scrollbar for the locked table */
     .locked-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -184,8 +232,8 @@
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-md font-semibold text-gray-800">Peak Hour Tracer</h2>
                 <div class="flex gap-2 bg-gray-100 p-1 rounded-lg">
-                    <button class="px-3 py-1 text-xs font-medium bg-white text-navy-900 rounded-md shadow-sm">Daily</button>
-                    <button class="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">Weekly</button>
+                    <button type="button" id="dailyPeakButton" class="px-3 py-1 text-xs font-medium bg-white text-navy-900 rounded-md shadow-sm transition-colors" aria-pressed="true">Daily</button>
+                    <button type="button" id="weeklyPeakButton" class="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 rounded-md transition-colors" aria-pressed="false">Weekly</button>
                 </div>
             </div>
             <div class="relative flex-1 w-full min-h-[200px]">
@@ -387,11 +435,14 @@
     document.addEventListener("DOMContentLoaded", function() {
         const ctx = document.getElementById('salesVelocityChart').getContext('2d');
         const liveChartData = @json($chartData);
+        const weeklyChartData = @json($weeklyChartData);
+        const dailyLabels = ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM'];
+        const weeklyLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-        new Chart(ctx, {
+        const salesVelocityChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM'],
+                labels: dailyLabels,
                 datasets: [{
                     label: 'Sales Vol (₱)',
                     data: liveChartData, 
@@ -418,6 +469,31 @@
                 }
             }
         });
+
+        const dailyButton = document.getElementById('dailyPeakButton');
+        const weeklyButton = document.getElementById('weeklyPeakButton');
+
+        function showPeakTracerPeriod(period) {
+            const showingDaily = period === 'daily';
+            salesVelocityChart.data.labels = showingDaily ? dailyLabels : weeklyLabels;
+            salesVelocityChart.data.datasets[0].data = showingDaily ? liveChartData : weeklyChartData;
+            salesVelocityChart.data.datasets[0].label = showingDaily ? 'Daily Sales Volume' : 'Weekly Sales Volume';
+            salesVelocityChart.update();
+
+            dailyButton.classList.toggle('bg-white', showingDaily);
+            dailyButton.classList.toggle('text-navy-900', showingDaily);
+            dailyButton.classList.toggle('shadow-sm', showingDaily);
+            dailyButton.classList.toggle('text-gray-500', !showingDaily);
+            weeklyButton.classList.toggle('bg-white', !showingDaily);
+            weeklyButton.classList.toggle('text-navy-900', !showingDaily);
+            weeklyButton.classList.toggle('shadow-sm', !showingDaily);
+            weeklyButton.classList.toggle('text-gray-500', showingDaily);
+            dailyButton.setAttribute('aria-pressed', showingDaily ? 'true' : 'false');
+            weeklyButton.setAttribute('aria-pressed', showingDaily ? 'false' : 'true');
+        }
+
+        dailyButton.addEventListener('click', () => showPeakTracerPeriod('daily'));
+        weeklyButton.addEventListener('click', () => showPeakTracerPeriod('weekly'));
     });
 
     // --- TRUE BULLETPROOF DOM ISOLATION AJAX ---

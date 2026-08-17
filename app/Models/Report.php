@@ -9,4 +9,12 @@ class Report extends Model
 {
     use HasFactory;
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return [
+            'period_start' => 'datetime',
+            'period_end' => 'datetime',
+        ];
+    }
 }

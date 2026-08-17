@@ -1,9 +1,24 @@
+@php
+    $appPreferences = Auth::check() ? Auth::user()->appPreferences() : [];
+    $sidebarCollapsed = ($appPreferences['sidebar_state'] ?? 'expanded') === 'collapsed';
+    $sidebarTextClass = $sidebarCollapsed ? 'text-collapsed' : 'text-expanded';
+@endphp
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme-preference="{{ $appPreferences['theme'] ?? 'system' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Ken\'s Marketing DSS')</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        (() => {
+            const preference = @json($appPreferences['theme'] ?? 'system');
+            const media = window.matchMedia('(prefers-color-scheme: dark)');
+            const applyTheme = () => document.documentElement.classList.toggle('dark', preference === 'dark' || (preference === 'system' && media.matches));
+            applyTheme();
+            media.addEventListener('change', () => { if (preference === 'system') applyTheme(); });
+        })();
+    </script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -45,61 +60,52 @@
         #search-results::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 8px; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased flex h-screen overflow-hidden">
+<body class="bg-gray-50 text-gray-800 font-sans antialiased flex h-screen overflow-hidden {{ ($appPreferences['reduced_motion'] ?? false) ? 'reduce-motion' : '' }}">
 
-    <aside id="sidebar" class="bg-navy-900 text-white w-64 flex flex-col transition-all duration-300 ease-in-out z-20 shrink-0 relative">
+    <aside id="sidebar" class="bg-navy-900 text-white {{ $sidebarCollapsed ? 'w-20' : 'w-64' }} flex flex-col transition-all duration-300 ease-in-out z-20 shrink-0 relative">
         <div class="h-16 flex items-center justify-center px-4 border-b border-navy-700/50 overflow-hidden">
             <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-8 w-auto object-contain sidebar-logo transition-transform duration-300 shrink-0">
-            <span class="font-semibold text-lg tracking-wide sidebar-text text-expanded whitespace-nowrap overflow-hidden">Ken's Marketing</span>
+            <span class="font-semibold text-lg tracking-wide sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Ken's Marketing</span>
         </div>
 
         <nav class="flex-1 py-6 px-3 space-y-2 overflow-y-auto overflow-x-hidden">
             <a href="/dashboard" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->is('dashboard') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Dashboard">
                 <i class="fa-solid fa-chart-pie w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Dashboard</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Dashboard</span>
             </a>
             
             <a href="/sales" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->is('sales') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Sales Module">
                 <i class="fa-solid fa-cart-shopping w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Sales Module</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Sales Module</span>
             </a>
             
             <a href="/inventory" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->is('inventory') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Inventory">
                 <i class="fa-solid fa-boxes-stacked w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Inventory</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Inventory</span>
             </a>
             
             <a href="/reports" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->is('reports') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Reports">
                 <i class="fa-solid fa-file-invoice w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Reports</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Reports</span>
             </a>
             
             <a href="/dss-insights" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->is('dss-insights') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="DSS Insights">
                 <i class="fa-solid fa-lightbulb w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">DSS Insights</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">DSS Insights</span>
             </a>
 
             <!-- ADMIN SECURITY HUB LINK (BULLETPROOF CHECK APPLIED) -->
             @if(Auth::check() && strtolower(trim(Auth::user()->role)) === 'admin')
             <a href="{{ route('admin.security') }}" class="flex items-center px-3 py-3 rounded-lg transition-colors duration-200 group {{ request()->routeIs('admin.security') ? 'bg-navy-700 text-white' : 'text-gray-300 hover:bg-navy-700/50 hover:text-white' }}" title="Security Hub">
                 <i class="fa-solid fa-shield-halved w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Security Hub</span>
+                <span class="font-medium sidebar-text {{ $sidebarTextClass }} whitespace-nowrap overflow-hidden">Security Hub</span>
             </a>
             @endif
         </nav>
 
-        <div class="p-3 border-t border-navy-700/50">
-            <a href="{{ route('logout') }}" 
-               onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
-               class="flex items-center px-3 py-2 text-gray-300 hover:text-white transition-colors duration-200 group cursor-pointer" title="Logout">
-                <i class="fa-solid fa-right-from-bracket w-6 text-center text-lg shrink-0"></i>
-                <span class="font-medium sidebar-text text-expanded whitespace-nowrap overflow-hidden">Logout</span>
-            </a>
-
-            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden" style="display: none;">
-                @csrf
-            </form>
-        </div>
+        <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden" style="display: none;">
+            @csrf
+        </form>
     </aside>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
@@ -117,9 +123,6 @@
                     <div class="relative">
                         <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         <input type="text" id="global-search-input" placeholder="Search system globally..." autocomplete="off" class="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-700 focus:bg-white w-72 transition-all">
-                        
-                        <!-- Search Loading Spinner -->
-                        <i id="search-spinner" class="fa-solid fa-circle-notch fa-spin absolute right-3 top-1/2 transform -translate-y-1/2 text-navy-700 hidden"></i>
                     </div>
 
                     <!-- Dropdown Results Container -->
@@ -131,15 +134,55 @@
                 </div>
                 <!-- / LIVE GLOBAL SEARCH BAR -->
 
-                <!-- DYNAMIC USER PROFILE (REPLACES HARDCODED 'AD Admin') -->
+                <!-- USER PROFILE DROPDOWN -->
                 @if(Auth::check())
-                <div class="flex items-center gap-3 cursor-pointer border-l border-gray-200 pl-6 ml-2">
-                    <div class="w-9 h-9 bg-navy-900 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm hover:bg-navy-700 transition-colors uppercase">
-                        {{ substr(Auth::user()->name, 0, 2) }}
-                    </div>
-                    <div class="hidden md:flex flex-col text-sm">
-                        <span class="font-semibold text-gray-800 leading-tight">{{ Auth::user()->name }}</span>
-                        <span class="text-[11px] text-gray-500 capitalize leading-tight font-medium">{{ strtolower(trim(Auth::user()->role)) }}</span>
+                <div class="relative border-l border-gray-200 pl-6 ml-2" id="profile-dropdown">
+                    <button type="button" id="profile-dropdown-button" onclick="toggleProfileDropdown(event)" class="flex items-center gap-3 rounded-lg p-1.5 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-navy-700/20" aria-haspopup="true" aria-expanded="false">
+                        <div class="w-9 h-9 bg-navy-900 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm uppercase overflow-hidden">
+                            @if(Auth::user()->profile_photo_path)
+                                <img src="{{ route('profile.photo') }}" alt="{{ Auth::user()->name }} profile photo" class="w-full h-full object-cover">
+                            @else
+                                {{ substr(Auth::user()->name, 0, 2) }}
+                            @endif
+                        </div>
+                        <div class="hidden md:flex flex-col text-sm text-left max-w-36">
+                            <span class="font-semibold text-gray-800 leading-tight truncate">{{ Auth::user()->name }}</span>
+                            <span class="text-[11px] text-gray-500 capitalize leading-tight font-medium">{{ strtolower(trim(Auth::user()->role)) }}</span>
+                        </div>
+                        <i id="profile-dropdown-chevron" class="fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform"></i>
+                    </button>
+
+                    <div id="profile-dropdown-menu" class="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden hidden z-50" role="menu">
+                        <div class="p-4 bg-gray-50 border-b border-gray-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-navy-900 text-white rounded-full flex items-center justify-center text-sm font-bold uppercase shrink-0 overflow-hidden">
+                                    @if(Auth::user()->profile_photo_path)
+                                        <img src="{{ route('profile.photo') }}" alt="{{ Auth::user()->name }} profile photo" class="w-full h-full object-cover">
+                                    @else
+                                        {{ substr(Auth::user()->name, 0, 2) }}
+                                    @endif
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-gray-800 truncate">{{ Auth::user()->name }}</p>
+                                    <p class="text-xs text-gray-500 truncate">{{ Auth::user()->email }}</p>
+                                </div>
+                            </div>
+                            <span class="inline-flex mt-3 px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wide">
+                                {{ strtolower(trim(Auth::user()->role)) }} account
+                            </span>
+                        </div>
+
+                        <div class="p-2">
+                            <a href="{{ route('profile') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-navy-700 transition-colors" role="menuitem">
+                                <i class="fa-solid fa-user w-4 text-center text-gray-400"></i> Profile
+                            </a>
+                            <a href="{{ route('settings') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 hover:text-navy-700 transition-colors" role="menuitem">
+                                <i class="fa-solid fa-gear w-4 text-center text-gray-400"></i> Settings
+                            </a>
+                            <button type="button" onclick="document.getElementById('logout-form').submit()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors" role="menuitem">
+                                <i class="fa-solid fa-right-from-bracket w-4 text-center"></i> Sign Out
+                            </button>
+                        </div>
                     </div>
                 </div>
                 @endif
@@ -152,9 +195,42 @@
     </main>
 
     <script>
+        function toggleProfileDropdown(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('profile-dropdown-menu');
+            const button = document.getElementById('profile-dropdown-button');
+            const chevron = document.getElementById('profile-dropdown-chevron');
+            const willOpen = menu.classList.contains('hidden');
+
+            menu.classList.toggle('hidden', !willOpen);
+            chevron.classList.toggle('rotate-180', willOpen);
+            button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        }
+
+        function closeProfileDropdown() {
+            const menu = document.getElementById('profile-dropdown-menu');
+            const button = document.getElementById('profile-dropdown-button');
+            const chevron = document.getElementById('profile-dropdown-chevron');
+
+            if (!menu) return;
+            menu.classList.add('hidden');
+            chevron.classList.remove('rotate-180');
+            button.setAttribute('aria-expanded', 'false');
+        }
+
+        document.addEventListener('click', event => {
+            const dropdown = document.getElementById('profile-dropdown');
+            if (dropdown && !dropdown.contains(event.target)) closeProfileDropdown();
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeProfileDropdown();
+        });
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const texts = document.querySelectorAll('.sidebar-text');
+            let sidebarState;
             
             if (sidebar.classList.contains('w-64')) {
                 sidebar.classList.remove('w-64');
@@ -164,6 +240,7 @@
                     text.classList.remove('text-expanded');
                     text.classList.add('text-collapsed');
                 });
+                sidebarState = 'collapsed';
             } else {
                 sidebar.classList.remove('w-20');
                 sidebar.classList.add('w-64');
@@ -172,7 +249,18 @@
                     text.classList.remove('text-collapsed');
                     text.classList.add('text-expanded');
                 });
+                sidebarState = 'expanded';
             }
+
+            fetch('{{ route('settings.sidebar.update') }}', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ sidebar_state: sidebarState }),
+            }).catch(error => console.error('Could not save sidebar preference:', error));
         }
 
         // ==========================================
@@ -181,7 +269,6 @@
         const searchInput = document.getElementById('global-search-input');
         const resultsContainer = document.getElementById('search-results-container');
         const resultsBox = document.getElementById('search-results');
-        const spinner = document.getElementById('search-spinner');
         let searchTimeout = null;
 
         searchInput.addEventListener('input', function() {
@@ -192,20 +279,16 @@
                 return;
             }
 
-            spinner.classList.remove('hidden');
-
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 fetch(`/global-search?query=${encodeURIComponent(query)}`)
                     .then(response => response.json())
                     .then(data => {
                         renderResults(data, query);
-                        spinner.classList.add('hidden');
                         resultsContainer.classList.remove('hidden');
                     })
                     .catch(error => {
                         console.error('Search error:', error);
-                        spinner.classList.add('hidden');
                     });
             }, 300);
         });
@@ -221,7 +304,10 @@
                 { name: 'Sales Module', url: '/sales', icon: 'fa-cart-shopping', keys: ['sale', 'pos', 'peak', 'forecast', 'ledger', 'transaction'] },
                 { name: 'Inventory Management', url: '/inventory', icon: 'fa-boxes-stacked', keys: ['inv', 'stock', 'product', 'sku'] },
                 { name: 'Report Center', url: '/reports', icon: 'fa-file-invoice', keys: ['report', 'summary', 'audit', 'margin', 'archive'] },
-                { name: 'DSS Insights', url: '/dss-insights', icon: 'fa-lightbulb', keys: ['dss', 'insight', 'pattern'] }
+                { name: 'DSS Insights', url: '/dss-insights', icon: 'fa-lightbulb', keys: ['dss', 'insight', 'pattern'] },
+                @if(Auth::check() && strtolower(trim(Auth::user()->role)) === 'admin')
+                { name: 'Security Hub', url: '{{ route('admin.security') }}', icon: 'fa-shield-halved', keys: ['security', 'admin', 'audit', 'staff', 'approval', 'pending', 'revoked', 'access'] }
+                @endif
             ];
 
             let matchedModules = modules.filter(m => m.keys.some(k => q.includes(k)) || m.name.toLowerCase().includes(q));

@@ -19,7 +19,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- LEFT COLUMN: TABBED USER MANAGEMENT -->
-        <div class="lg:col-span-1">
+        <div class="lg:col-span-1 lg:sticky lg:top-6 lg:self-start">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible flex flex-col">
                 <div class="bg-navy-900 text-white p-4 border-b border-navy-700 rounded-t-2xl">
                     <h2 class="text-md font-semibold flex items-center gap-2">
@@ -109,37 +109,99 @@
         <!-- RIGHT COLUMN: SYSTEM LOGS / AUDIT TRAIL -->
         <div class="lg:col-span-2">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col">
-                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <div class="p-5 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50">
                     <h2 class="text-md font-semibold text-gray-800 flex items-center gap-2">
-                        <i class="fa-solid fa-clipboard-list text-navy-700"></i> Live System Audit Trail
+                        <i class="fa-solid fa-clipboard-list text-navy-700"></i> Admin & Staff Activity Trail
                     </h2>
-                    <span class="text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">Last 50 Actions</span>
+                    <span class="text-xs font-medium text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm whitespace-nowrap">{{ $systemLogs->count() }} {{ $hasAuditFilters ? 'Matching' : 'Recent' }} Actions</span>
                 </div>
+
+                <form id="auditFilterForm" method="GET" action="{{ route('admin.security') }}" class="p-4 border-b border-gray-100 bg-white" aria-label="Filter security activity">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                        <div class="sm:col-span-2 xl:col-span-1 relative">
+                            <label for="audit-search" class="sr-only">Search activity</label>
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+                            <input id="audit-search" type="search" name="search" value="{{ $auditFilters['search'] }}" placeholder="Action, actor, email, or module" class="w-full h-9 pl-8 pr-3 text-xs border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-700/20 focus:border-navy-700">
+                        </div>
+
+                        <div>
+                            <label for="audit-role" class="sr-only">Actor role</label>
+                            <select id="audit-role" name="role" class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-700/20 focus:border-navy-700">
+                                <option value="">All actors</option>
+                                <option value="admin" @selected($auditFilters['role'] === 'admin')>Admins</option>
+                                <option value="staff" @selected($auditFilters['role'] === 'staff')>Staff</option>
+                                <option value="system" @selected($auditFilters['role'] === 'system')>System / Guest</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="audit-module" class="sr-only">System module</label>
+                            <select id="audit-module" name="module" class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-700/20 focus:border-navy-700">
+                                <option value="">All modules</option>
+                                @foreach($auditModules as $moduleValue => $moduleLabel)
+                                    <option value="{{ $moduleValue }}" @selected($auditFilters['module'] === $moduleValue)>{{ $moduleLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="audit-period" class="sr-only">Activity period</label>
+                            <select id="audit-period" name="period" class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-navy-700/20 focus:border-navy-700">
+                                <option value="">All time</option>
+                                <option value="today" @selected($auditFilters['period'] === 'today')>Today</option>
+                                <option value="7_days" @selected($auditFilters['period'] === '7_days')>Last 7 days</option>
+                                <option value="30_days" @selected($auditFilters['period'] === '30_days')>Last 30 days</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-2">
+                        <p class="text-[11px] text-gray-400"><i class="fa-solid fa-bolt mr-1"></i>Filters update automatically.</p>
+                        @if($hasAuditFilters)
+                            <a href="{{ route('admin.security') }}" class="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                                <i class="fa-solid fa-rotate-left"></i> Reset
+                            </a>
+                        @endif
+                    </div>
+                </form>
                 
                 <div class="overflow-x-auto overflow-y-auto flex-1 locked-table-scroll" style="max-height: 800px;">
                     <table class="w-full text-left text-sm text-gray-600 relative">
                         <thead class="text-xs text-gray-500 uppercase bg-white sticky top-0 z-10 shadow-sm border-b border-gray-100">
                             <tr>
                                 <th scope="col" class="px-6 py-4 font-semibold">Timestamp</th>
-                                <th scope="col" class="px-6 py-4 font-semibold">User</th>
+                                <th scope="col" class="px-6 py-4 font-semibold">Actor</th>
                                 <th scope="col" class="px-6 py-4 font-semibold">Action Detail</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50">
                             @forelse($systemLogs as $log)
+                                @php
+                                    $actorName = $log->causer?->name ?? data_get($log->properties, 'actor_name', 'System / Guest');
+                                    $actorRole = strtolower(trim((string) ($log->causer?->role ?? data_get($log->properties, 'actor_role', 'system'))));
+                                    $module = data_get($log->properties, 'module');
+                                    $roleStyles = match ($actorRole) {
+                                        'admin' => 'bg-purple-50 text-purple-700 border-purple-100',
+                                        'staff' => 'bg-blue-50 text-blue-700 border-blue-100',
+                                        default => 'bg-gray-50 text-gray-600 border-gray-200',
+                                    };
+                                @endphp
                                 <tr class="hover:bg-gray-50 transition-colors">
                                     <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                                         {{ $log->created_at->format('M d, Y') }} <br>
                                         <span class="text-gray-400">{{ $log->created_at->format('h:i A') }}</span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap font-medium text-navy-700 text-xs">
-                                        @if($log->causer)
-                                            <i class="fa-solid fa-user-tie mr-1 text-gray-400"></i> {{ $log->causer->name }}
-                                        @else
-                                            <i class="fa-solid fa-desktop mr-1 text-gray-400"></i> System / Guest
-                                        @endif
+                                    <td class="px-6 py-4 whitespace-nowrap text-xs">
+                                        <div class="font-medium text-navy-700">
+                                            <i class="fa-solid {{ $actorRole === 'system' ? 'fa-desktop' : 'fa-user-tie' }} mr-1 text-gray-400"></i>
+                                            {{ $actorName }}
+                                        </div>
+                                        <span class="inline-flex mt-1 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wide {{ $roleStyles }}">{{ $actorRole }}</span>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-800 leading-relaxed">
+                                        @if($module)
+                                            <span class="inline-flex mr-2 mb-1 px-2 py-0.5 rounded-md bg-navy-50 text-navy-700 text-[10px] font-bold uppercase tracking-wide">{{ $module }}</span>
+                                        @endif
                                         @if(str_contains(strtolower($log->description), 'alert') || str_contains(strtolower($log->description), 'blocked') || str_contains(strtolower($log->description), 'failed') || str_contains(strtolower($log->description), 'revoked'))
                                             <span class="text-red-600 font-medium"><i class="fa-solid fa-shield-halved mr-1 text-xs"></i> {{ $log->description }}</span>
                                         @elseif(str_contains(strtolower($log->description), 'request') || str_contains(strtolower($log->description), 'pending'))
@@ -152,7 +214,7 @@
                             @empty
                                 <tr>
                                     <td colspan="3" class="px-6 py-12 text-center text-gray-400 text-sm font-medium border-t border-gray-50">
-                                        No system logs recorded yet.
+                                        {{ $hasAuditFilters ? 'No actions match the selected filters.' : 'No system logs recorded yet.' }}
                                     </td>
                                 </tr>
                             @endforelse
@@ -273,5 +335,21 @@
             }
         });
     });
+
+    const auditFilterForm = document.getElementById('auditFilterForm');
+
+    if (auditFilterForm) {
+        let searchTimer;
+        const auditSearch = document.getElementById('audit-search');
+
+        auditFilterForm.querySelectorAll('select').forEach(select => {
+            select.addEventListener('change', () => auditFilterForm.requestSubmit());
+        });
+
+        auditSearch?.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => auditFilterForm.requestSubmit(), 450);
+        });
+    }
 </script>
 @endsection
