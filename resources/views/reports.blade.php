@@ -63,10 +63,17 @@
                             <option value="this_week">This Week</option>
                             <option value="this_month" selected>This Month</option>
                             <option value="last_month">Last Month</option>
-                            <option value="q1">Quarter 1 (Jan - Mar)</option>
-                            <option value="q2">Quarter 2 (Apr - Jun)</option>
-                            <option value="q3">Quarter 3 (Jul - Sep)</option>
-                            <option value="q4">Quarter 4 (Oct - Dec)</option>
+                            @php
+                                $quarterLabels = [
+                                    1 => 'Jan - Mar',
+                                    2 => 'Apr - Jun',
+                                    3 => 'Jul - Sep',
+                                    4 => 'Oct - Dec',
+                                ];
+                            @endphp
+                            @for($quarter = 1; $quarter <= now()->quarter; $quarter++)
+                                <option value="q{{ $quarter }}">Quarter {{ $quarter }} ({{ $quarterLabels[$quarter] }})</option>
+                            @endfor
                         </select>
                     </div>
                 </div>
